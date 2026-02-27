@@ -374,6 +374,9 @@
       <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
         <span class="icon">🏠</span> 首頁總覽
       </div>
+      <div class="nav-item" onclick="showPage('bind')" id="nav-bind">
+        <span class="icon">🔗</span> 設定任課
+      </div>
       <div class="nav-item" onclick="showPage('roster')" id="nav-roster">
         <span class="icon">📋</span> 學生名單管理
       </div>
@@ -474,15 +477,37 @@
       <!-- Bind classes page -->
       <div id="page-bind" style="display:none">
         <div class="card mb-4">
-          <div class="card-header"><div class="card-title">🔗 設定我的任課班級與科目</div></div>
+          <div class="card-header">
+            <div class="card-title">🔗 設定我的任課班級與科目</div>
+            <span class="text-sm text-muted" style="margin-left:8px">點選班級後選擇科目進行綁定</span>
+          </div>
           <div class="card-body">
-            <p class="text-sm text-muted mb-3">從下方選擇您任教的班級，再選擇科目與節數進行綁定。</p>
             <div class="form-group">
               <label class="form-label">選擇班級</label>
-              <div class="class-selector-grid" id="bind-class-grid"></div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+                <button class="btn btn-ghost btn-sm" onclick="filterBindGrade(0)">全部</button>
+                <button class="btn btn-ghost btn-sm" onclick="filterBindGrade(1)">一年級</button>
+                <button class="btn btn-ghost btn-sm" onclick="filterBindGrade(2)">二年級</button>
+                <button class="btn btn-ghost btn-sm" onclick="filterBindGrade(3)">三年級</button>
+                <button class="btn btn-ghost btn-sm" onclick="filterBindGrade(4)">四年級</button>
+                <button class="btn btn-ghost btn-sm" onclick="filterBindGrade(5)">五年級</button>
+                <button class="btn btn-ghost btn-sm" onclick="filterBindGrade(6)">六年級</button>
+              </div>
+              <div class="class-selector-grid" id="bind-class-grid">
+                <!-- 由 JS 填入 -->
+              </div>
             </div>
-            <div id="bind-subject-section" style="display:none">
-              <div class="form-label mb-2">選擇班級 <strong id="bind-selected-class"></strong> 您任教的科目</div>
+          </div>
+        </div>
+        <div id="bind-subject-section" style="display:none">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📚 <span id="bind-selected-class"></span>班 — 選擇您任教的科目</div>
+            </div>
+            <div class="card-body">
+              <div class="alert alert-info mb-3" style="font-size:0.82rem">
+                勾選您任教的科目，並填寫您負責的節數。同一科目若由多位老師分擔，可同時存在。
+              </div>
               <div id="bind-subject-list"></div>
             </div>
           </div>
@@ -831,46 +856,77 @@ window.showBindPage = function() {
 };
 
 window.showBindSubjects = async function(classId, el) {
-  document.querySelectorAll('.class-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('bind-selected-class').textContent = classId + '班';
+  document.getElementById('bind-selected-class').textContent = classId;
   document.getElementById('bind-subject-section').style.display = 'block';
+
+  const listEl = document.getElementById('bind-subject-list');
+  listEl.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+
+  // Scroll to subject section
+  document.getElementById('bind-subject-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const grade = getGrade(classId);
   const subjects = getSubjectsForGrade(grade);
-  const existing = myAssignments.filter(a => a.classId === classId);
 
-  let html = '';
+  // Get all assignments for this class this semester
+  const assignQ = query(collection(db, 'assignments'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const assignSnap = await getDocs(assignQ);
+  const allAssignments = assignSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+
   for (const subj of subjects) {
-    // Check if someone else has it
-    const q = query(collection(db, 'assignments'),
-      where('classId', '==', classId),
-      where('subjectId', '==', subj.id),
-      where('semesterYear', '==', currentSemester.year),
-      where('semesterNum', '==', currentSemester.semester));
-    const snap = await getDocs(q);
-    const taken = snap.docs.find(d => d.data().teacherEmail !== currentUser.email);
-    const mine = existing.find(a => a.subjectId === subj.id);
+    const myAssign = allAssignments.find(a => a.teacherEmail === currentUser.email && a.subjectId === subj.id);
+    const othersAssign = allAssignments.filter(a => a.teacherEmail !== currentUser.email && a.subjectId === subj.id);
+    const maxHours = subj.hours || 1;
+    const usedHours = othersAssign.reduce((s, a) => s + (a.hours || 1), 0);
+    const remainHours = maxHours - usedHours - (myAssign?.hours || 0);
 
-    html += `<div class="subject-row" style="margin-bottom:8px">
-      <div class="subject-info">
+    const isMine = !!myAssign;
+    const isFullyTaken = !isMine && remainHours <= 0 && maxHours > 1;
+
+    html += `<div class="subject-row" style="padding:12px 16px;gap:12px">
+      <div class="subject-info" style="flex:1">
         <div class="subject-name">${subj.name}</div>
-        ${taken ? `<div class="subject-meta" style="color:var(--warning)">已由其他老師任教</div>` : ''}
-      </div>
-      ${!taken || mine ? `
-        <div style="display:flex;align-items:center;gap:8px">
-          <label style="font-size:0.78rem;color:var(--gray-500)">節數</label>
-          <input type="number" style="width:60px" class="grade-input" id="hours-${subj.id}" value="${mine?.hours || 1}" min="1" max="${subj.hours || 1}">
-          <input type="checkbox" id="bind-${subj.id}" ${mine ? 'checked' : ''} onchange="toggleBindSubject('${classId}','${subj.id}','${subj.name}',this)">
+        <div class="subject-meta">
+          ${maxHours > 1 ? `總節數 ${maxHours} 節` : ''}
+          ${othersAssign.length > 0 ? ` · 其他老師已綁定：${othersAssign.map(a => `${a.teacherName||'未知'}(${a.hours}節)`).join('、')}` : ''}
         </div>
-      ` : `<span class="tag" style="background:var(--gray-100);color:var(--gray-400)">已佔用</span>`}
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+        ${maxHours > 1 ? `
+          <div style="font-size:0.78rem;color:var(--gray-500)">我的節數</div>
+          <input type="number" class="grade-input" id="hours-${classId}-${subj.id}"
+            value="${myAssign?.hours || 1}" min="1" max="${Math.max(1, maxHours - usedHours + (myAssign?.hours||0))}"
+            style="width:60px" ${isFullyTaken ? 'disabled' : ''}>
+        ` : ''}
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="bind-cb-${subj.id}"
+            ${isMine ? 'checked' : ''}
+            ${isFullyTaken ? 'disabled' : ''}
+            onchange="toggleBindSubject('${classId}','${subj.id}','${subj.name}',this)">
+          <span style="font-size:0.82rem;font-weight:600;color:${isMine ? 'var(--success)' : isFullyTaken ? 'var(--gray-400)' : 'var(--gray-700)'}">
+            ${isMine ? '✅ 已綁定' : isFullyTaken ? '已佔滿' : '綁定'}
+          </span>
+        </label>
+      </div>
     </div>`;
   }
-  document.getElementById('bind-subject-list').innerHTML = html;
+
+  html += '</div>';
+  listEl.innerHTML = html;
 };
 
 window.toggleBindSubject = async function(classId, subjectId, subjectName, cb) {
-  const hours = parseInt(document.getElementById('hours-' + subjectId)?.value) || 1;
+  const hoursInput = document.getElementById(`hours-${classId}-${subjectId}`);
+  const hours = hoursInput ? parseInt(hoursInput.value) || 1 : 1;
+
+  // Update checkbox label
+  const label = cb.nextElementSibling;
+
   if (cb.checked) {
     const newDoc = {
       teacherEmail: currentUser.email,
@@ -881,11 +937,16 @@ window.toggleBindSubject = async function(classId, subjectId, subjectName, cb) {
     };
     const ref = await addDoc(collection(db, 'assignments'), newDoc);
     myAssignments.push({ id: ref.id, ...newDoc });
+    if (label) { label.textContent = '✅ 已綁定'; label.style.color = 'var(--success)'; }
+    // Mark class chip as mine
+    const chip = document.querySelector(`.class-chip[data-class="${classId}"]`);
+    if (chip) chip.classList.add('my-class');
     showToast(`已綁定 ${classId}班 ${subjectName}`, 'success');
   } else {
     const found = myAssignments.find(a => a.classId === classId && a.subjectId === subjectId);
     if (found?.id) await deleteDoc(doc(db, 'assignments', found.id));
     myAssignments = myAssignments.filter(a => !(a.classId === classId && a.subjectId === subjectId));
+    if (label) { label.textContent = '綁定'; label.style.color = 'var(--gray-700)'; }
     showToast(`已解除 ${classId}班 ${subjectName}`, 'info');
   }
   renderDashboard();
@@ -1592,8 +1653,46 @@ window.showPage = function(page) {
     overview:'班級成績總覽', ranking:'成績排名', bind:'設定任課', semester:'切換學年學期' };
   document.getElementById('topbar-title').textContent = titles[page] || '';
 
+  if (page === 'bind') renderBindPage();
   if (page === 'overview') loadOverview();
   if (page === 'ranking') loadRanking();
+};
+
+// ===== BIND PAGE RENDER =====
+let bindGradeFilter = 0;
+let bindClassChips = [];
+
+function renderBindPage() {
+  const grid = document.getElementById('bind-class-grid');
+  grid.innerHTML = '';
+  bindClassChips = [];
+
+  ALL_CLASSES.forEach(c => {
+    const grade = getGrade(c);
+    const isMine = myAssignments.some(a => a.classId === c);
+    const div = document.createElement('div');
+    div.className = `class-chip ${isMine ? 'my-class' : ''}`;
+    div.textContent = c + '班';
+    div.dataset.grade = grade;
+    div.dataset.class = c;
+    div.onclick = () => {
+      document.querySelectorAll('.class-chip').forEach(ch => ch.classList.remove('active'));
+      div.classList.add('active');
+      showBindSubjects(c, div);
+    };
+    grid.appendChild(div);
+    bindClassChips.push(div);
+  });
+}
+
+window.filterBindGrade = function(grade) {
+  bindClassChips.forEach(chip => {
+    chip.style.display = (grade === 0 || parseInt(chip.dataset.grade) === grade) ? '' : 'none';
+  });
+  // Update filter buttons style
+  document.querySelectorAll('#page-bind .btn-ghost').forEach((btn, i) => {
+    btn.className = 'btn btn-sm ' + (i === grade ? 'btn-primary' : 'btn-ghost');
+  });
 };
 
 function populateClassSelects() {
