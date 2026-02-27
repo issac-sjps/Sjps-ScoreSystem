@@ -1,1 +1,414 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新莊國小 成績管理系統</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f2a4a 0%, #1a4a7a 50%, #0f2a4a 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    body::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: 
+        radial-gradient(circle at 20% 20%, rgba(255,255,255,0.03) 1px, transparent 1px),
+        radial-gradient(circle at 80% 80%, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .login-container {
+      width: 100%; max-width: 420px;
+      position: relative; z-index: 1;
+    }
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .school-logo {
+      width: 70px; height: 70px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem;
+      margin: 0 auto 16px;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .school-name {
+      font-family: var(--font-serif);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: white;
+      line-height: 1.2;
+    }
+    .system-name {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.6);
+      margin-top: 6px;
+      letter-spacing: 0.1em;
+    }
+    .login-card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .step-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      margin-bottom: 6px;
+    }
+    .step-desc {
+      font-size: 0.82rem;
+      color: var(--gray-500);
+      margin-bottom: 24px;
+    }
+    .identity-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .identity-card {
+      border: 2px solid var(--gray-200);
+      border-radius: 10px;
+      padding: 16px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .identity-card:hover {
+      border-color: var(--primary-light);
+      background: var(--primary-pale);
+    }
+    .identity-card.selected {
+      border-color: var(--primary);
+      background: var(--primary-pale);
+    }
+    .identity-card .icon { font-size: 1.8rem; margin-bottom: 6px; }
+    .identity-card .label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+    .google-btn {
+      width: 100%;
+      padding: 12px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 10px;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--gray-700);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font-sans);
+      margin-bottom: 12px;
+    }
+    .google-btn:hover { border-color: var(--primary); background: var(--gray-50); }
+    .google-icon {
+      width: 20px; height: 20px;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') no-repeat center;
+      background-size: contain;
+      flex-shrink: 0;
+    }
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--gray-300); font-size: 0.78rem;
+      margin: 16px 0;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--gray-200);
+    }
+    .password-section { display: none; }
+    .password-section.show { display: block; }
+    .footer-note {
+      text-align: center;
+      font-size: 0.72rem;
+      color: rgba(255,255,255,0.4);
+      margin-top: 20px;
+    }
+    /* Steps */
+    .steps-indicator {
+      display: flex; gap: 8px; margin-bottom: 24px;
+    }
+    .step-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--gray-200);
+      transition: background 0.2s;
+    }
+    .step-dot.active { background: var(--primary); }
+    .step-dot.done { background: var(--success); }
 
+    #step-identity { display: block; }
+    #step-password { display: none; }
+    #step-login { display: none; }
+  </style>
+</head>
+<body>
+  <div id="toast-container"></div>
+
+  <div class="login-container">
+    <div class="login-header">
+      <div class="school-logo">🏫</div>
+      <div class="school-name">高雄市左營區<br>新莊國民小學</div>
+      <div class="system-name">成績管理系統</div>
+    </div>
+
+    <div class="login-card">
+      <div class="steps-indicator">
+        <div class="step-dot active" id="dot-1"></div>
+        <div class="step-dot" id="dot-2"></div>
+        <div class="step-dot" id="dot-3"></div>
+      </div>
+
+      <!-- Step 1: 選擇身分 -->
+      <div id="step-identity">
+        <div class="step-title">請選擇您的身分</div>
+        <div class="step-desc">選擇後將進行 Google 登入驗證</div>
+        <div class="identity-grid">
+          <div class="identity-card" onclick="selectIdentity('admin')">
+            <div class="icon">🛡️</div>
+            <div class="label">管理員</div>
+          </div>
+          <div class="identity-card" onclick="selectIdentity('teacher')">
+            <div class="icon">👨‍🏫</div>
+            <div class="label">老師</div>
+          </div>
+          <div class="identity-card" onclick="selectIdentity('student')">
+            <div class="icon">🎒</div>
+            <div class="label">學生</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: 老師密碼驗證 -->
+      <div id="step-password">
+        <div class="step-title">老師身分驗證</div>
+        <div class="step-desc">請輸入老師通關密碼以確認身分</div>
+        <div class="form-group">
+          <label class="form-label">通關密碼</label>
+          <input type="password" class="form-control" id="teacher-pw" placeholder="請輸入密碼" autocomplete="off">
+          <div class="form-hint">提示：學校英文縮寫（小寫）</div>
+        </div>
+        <div id="pw-error" class="form-error" style="display:none">密碼錯誤，請重新輸入</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost w-full" onclick="backToIdentity()">← 返回</button>
+          <button class="btn btn-primary w-full" onclick="verifyPassword()">確認 →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Google 登入 -->
+      <div id="step-login">
+        <div class="step-title">Google 帳號登入</div>
+        <div class="step-desc" id="login-desc"></div>
+        <button class="google-btn" onclick="signInWithGoogle()" id="google-btn">
+          <div class="google-icon"></div>
+          使用 Google 帳號登入
+        </button>
+        <button class="btn btn-ghost w-full" onclick="backToStep2()" id="back-btn">← 返回</button>
+        <div class="mt-3">
+          <div class="alert alert-info" style="font-size:0.78rem">
+            💡 登入後系統將根據您的 Google 帳號自動識別權限
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      新莊國小成績管理系統 © 2025 | 技術支援：issac@sjps.kh.edu.tw
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA8m4nHUZ9jjZadMaUxZtXau7G44ChZeJY",
+      authDomain: "sjps-scoresystem.firebaseapp.com",
+      projectId: "sjps-scoresystem",
+      storageBucket: "sjps-scoresystem.firebasestorage.app",
+      messagingSenderId: "786097431395",
+      appId: "1:786097431395:web:1469342ed3c53b6c1ee956"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    const TEACHER_PASSWORD = "sjps";
+    const SUPER_ADMIN = "issac@sjps.kh.edu.tw";
+
+    let selectedIdentity = null;
+
+    window.selectIdentity = function(identity) {
+      selectedIdentity = identity;
+      document.querySelectorAll('.identity-card').forEach(c => c.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+
+      setTimeout(() => {
+        if (identity === 'teacher') {
+          showStep('password');
+        } else {
+          const descs = { admin: '以管理員身分登入（系統將驗證您的帳號權限）', student: '以學生身分登入（登入後可查看個人成績）' };
+          document.getElementById('login-desc').textContent = descs[identity];
+          document.getElementById('back-btn').onclick = backToIdentity;
+          showStep('login');
+        }
+      }, 200);
+    };
+
+    window.verifyPassword = function() {
+      const pw = document.getElementById('teacher-pw').value;
+      if (pw === TEACHER_PASSWORD) {
+        document.getElementById('pw-error').style.display = 'none';
+        document.getElementById('login-desc').textContent = '以老師身分登入（登入後可管理班級與成績）';
+        document.getElementById('back-btn').onclick = backToStep2;
+        showStep('login');
+      } else {
+        document.getElementById('pw-error').style.display = 'block';
+        document.getElementById('teacher-pw').value = '';
+      }
+    };
+
+    document.getElementById('teacher-pw')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') window.verifyPassword();
+    });
+
+    window.backToIdentity = function() {
+      selectedIdentity = null;
+      document.querySelectorAll('.identity-card').forEach(c => c.classList.remove('selected'));
+      showStep('identity');
+    };
+
+    window.backToStep2 = function() { showStep('password'); };
+
+    function showStep(step) {
+      document.getElementById('step-identity').style.display = 'none';
+      document.getElementById('step-password').style.display = 'none';
+      document.getElementById('step-login').style.display = 'none';
+      document.getElementById('step-' + step).style.display = 'block';
+      document.getElementById('dot-1').className = 'step-dot' + (step === 'identity' ? ' active' : ' done');
+      document.getElementById('dot-2').className = 'step-dot' + (step === 'password' ? ' active' : step === 'login' && selectedIdentity === 'teacher' ? ' done' : '');
+      document.getElementById('dot-3').className = 'step-dot' + (step === 'login' ? ' active' : '');
+    }
+
+    window.signInWithGoogle = async function() {
+      const btn = document.getElementById('google-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;margin:0"></div> 登入中...';
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        await handleLogin(user);
+      } catch(e) {
+        btn.disabled = false;
+        btn.innerHTML = '<div class="google-icon"></div> 使用 Google 帳號登入';
+        if (e.code !== 'auth/popup-closed-by-user') showToast('登入失敗：' + e.message, 'error');
+      }
+    };
+
+    async function handleLogin(user) {
+      const email = user.email;
+
+      // 確認管理員清單
+      const adminsSnap = await getDocs(collection(db, 'admins'));
+      const adminEmails = adminsSnap.docs.map(d => d.data().email);
+      if (!adminEmails.includes(SUPER_ADMIN)) {
+        await setDoc(doc(db, 'admins', SUPER_ADMIN.replace('@','_')), { email: SUPER_ADMIN, name: 'Issac', createdAt: new Date() });
+        adminEmails.push(SUPER_ADMIN);
+      }
+
+      if (adminEmails.includes(email)) {
+        await ensureUserDoc(user, 'admin');
+        window.location.href = 'admin/index.html';
+        return;
+      }
+
+      if (selectedIdentity === 'admin') {
+        showToast('此帳號不在管理員清單中，請聯絡 issac@sjps.kh.edu.tw', 'error');
+        const btn = document.getElementById('google-btn');
+        btn.disabled = false;
+        btn.innerHTML = '<div class="google-icon"></div> 使用 Google 帳號登入';
+        return;
+      }
+
+      if (selectedIdentity === 'teacher') {
+        const userRef = doc(db, 'users', email);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists() && userSnap.data().role === 'teacher') {
+          window.location.href = 'teacher/index.html';
+        } else {
+          // 新老師：設定名字
+          sessionStorage.setItem('pending_user', JSON.stringify({ email, name: user.displayName, photo: user.photoURL }));
+          sessionStorage.setItem('pending_role', 'teacher');
+          await ensureUserDoc(user, 'teacher');
+          window.location.href = 'teacher/index.html';
+        }
+        return;
+      }
+
+      if (selectedIdentity === 'student') {
+        const userRef = doc(db, 'users', email);
+        const userSnap = await getDoc(userRef);
+        await ensureUserDoc(user, 'student');
+        window.location.href = 'student/index.html';
+        return;
+      }
+    }
+
+    async function ensureUserDoc(user, role) {
+      const ref = doc(db, 'users', user.email);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          email: user.email,
+          displayName: user.displayName || '',
+          photoURL: user.photoURL || '',
+          role: role,
+          realName: '',
+          createdAt: new Date()
+        });
+      }
+    }
+
+    // Check if already logged in
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userSnap = await getDoc(doc(db, 'users', user.email));
+        if (userSnap.exists()) {
+          const role = userSnap.data().role;
+          if (role === 'admin') { window.location.href = 'admin/index.html'; return; }
+          if (role === 'teacher') { window.location.href = 'teacher/index.html'; return; }
+          if (role === 'student') { window.location.href = 'student/index.html'; return; }
+        }
+      }
+    });
+
+    // Toast helper
+    window.showToast = function(msg, type = 'info') {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
+    };
+  </script>
+</body>
+</html>
