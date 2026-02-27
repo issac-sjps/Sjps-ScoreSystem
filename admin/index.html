@@ -47,6 +47,22 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
+    .switch-identity-btn {
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: white;
+      border: none;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.15s;
+      font-family: var(--font-sans);
+    }
+    .switch-identity-btn:hover { opacity: 0.88; }
     .unbound-chip {
       font-size: 0.72rem;
       background: var(--danger-light);
@@ -66,7 +82,115 @@
   <div class="sub-text">管理員後台</div>
 </div>
 
-<!-- Edit User Modal -->
+<!-- Roster Import Modal (Admin) -->
+<div class="modal-overlay" id="admin-roster-modal" style="display:none">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title">📋 管理學生名單 — <span id="admin-roster-class-label"></span>班</div>
+      <button class="modal-close" onclick="closeModal('admin-roster-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchRosterTab('import',this)">快速匯入</button>
+        <button class="tab-btn" onclick="switchRosterTab('manual',this)">手動新增</button>
+        <button class="tab-btn" onclick="switchRosterTab('list',this)">目前名單</button>
+      </div>
+
+      <!-- Import tab -->
+      <div id="admin-roster-tab-import" class="tab-pane active">
+        <div class="alert alert-info mb-3">
+          每行格式：<strong>學號 座號 姓名</strong>（空格分隔）<br>
+          例：<code>114001 01 王小明</code>
+        </div>
+        <div class="form-group">
+          <label class="form-label">貼上名單</label>
+          <textarea class="import-area" id="admin-import-text" placeholder="114001 01 黃O恩&#10;114002 02 梁O侑&#10;114003 03 葉O寬" style="width:100%;min-height:140px;padding:10px;border:1px solid var(--gray-200);border-radius:8px;font-family:monospace;font-size:0.85rem;resize:vertical"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer">
+            <input type="checkbox" id="admin-import-replace"> 覆蓋現有名單（清空後重新匯入）
+          </label>
+        </div>
+        <div id="admin-import-preview" style="display:none;margin-top:16px">
+          <div class="form-label mb-2">預覽（<span id="admin-import-count">0</span> 位學生）</div>
+          <div class="table-wrapper" style="max-height:180px;overflow-y:auto">
+            <table><thead><tr><th>座號</th><th>學號</th><th>姓名</th></tr></thead>
+            <tbody id="admin-import-preview-tbody"></tbody></table>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn btn-outline" onclick="adminParseImport()">預覽解析</button>
+          <button class="btn btn-primary" id="admin-import-confirm-btn" disabled onclick="adminConfirmImport()">確認匯入</button>
+        </div>
+      </div>
+
+      <!-- Manual tab -->
+      <div id="admin-roster-tab-manual" class="tab-pane" style="display:none">
+        <div class="form-group">
+          <label class="form-label">學號</label>
+          <input type="text" class="form-control" id="admin-new-sid" placeholder="114001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">座號</label>
+          <input type="number" class="form-control" id="admin-new-seat" placeholder="1" min="1" max="50">
+        </div>
+        <div class="form-group">
+          <label class="form-label">姓名</label>
+          <input type="text" class="form-control" id="admin-new-name" placeholder="王小明">
+        </div>
+        <button class="btn btn-primary" onclick="adminAddStudent()">新增</button>
+      </div>
+
+      <!-- List tab -->
+      <div id="admin-roster-tab-list" class="tab-pane" style="display:none">
+        <div id="admin-roster-list-content">
+          <div class="empty-state"><div class="spinner" style="margin:auto"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Student Modal (admin single add) -->
+<div class="modal-overlay" id="admin-special-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⭐ 特殊標記設定</div>
+      <button class="modal-close" onclick="closeModal('admin-special-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="admin-special-name" style="font-weight:700;color:var(--primary);margin-bottom:12px"></div>
+      <div class="form-group">
+        <label class="form-label">標記類型</label>
+        <select class="form-control" id="admin-special-type">
+          <option value="">無特殊標記</option>
+          <option value="skip">跳級生</option>
+          <option value="self">自學生</option>
+          <option value="special">特教生</option>
+        </select>
+      </div>
+      <div id="admin-skip-detail" style="display:none">
+        <div class="form-group">
+          <label class="form-label">跳級科目</label>
+          <select class="form-control" id="admin-skip-subjects" multiple style="height:120px">
+          </select>
+          <div class="form-hint">Ctrl 鍵多選</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">跳至班級</label>
+          <select class="form-control" id="admin-skip-class">
+            <option value="">請選擇</option>
+          </select>
+        </div>
+      </div>
+      <input type="hidden" id="admin-special-student-id">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('admin-special-modal')">取消</button>
+      <button class="btn btn-primary" onclick="adminSaveSpecial()">儲存</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="edit-user-modal" style="display:none">
   <div class="modal">
     <div class="modal-header">
@@ -250,6 +374,9 @@
       <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
       <div class="topbar-title" id="topbar-title">後台首頁</div>
       <div class="topbar-actions">
+        <button class="switch-identity-btn" onclick="switchToTeacher()" title="切換到老師身分操作成績">
+          👨‍🏫 切換老師身分
+        </button>
         <div class="semester-selector">
           <span>學期：</span>
           <select id="semester-select-top" onchange="changeSemester()"></select>
@@ -322,10 +449,14 @@
 
       <!-- Students Admin -->
       <div id="page-students" style="display:none">
-        <div class="flex items-center gap-3 mb-4">
+        <div class="flex items-center gap-3 mb-4" style="flex-wrap:wrap">
           <select class="form-control" id="admin-student-class" onchange="loadAdminStudents()" style="width:160px">
             <option value="">-- 選擇班級 --</option>
           </select>
+          <div id="admin-roster-btns" style="display:none;gap:8px;display:flex">
+            <button class="btn btn-outline btn-sm" onclick="openAdminRosterModal()">📋 管理名單</button>
+            <button class="btn btn-primary btn-sm" onclick="openAdminRosterModal('manual')">+ 新增學生</button>
+          </div>
         </div>
         <div class="card">
           <div class="card-body" id="admin-students-wrap">
@@ -663,10 +794,180 @@ async function loadAssignments() {
   wrap.innerHTML = html;
 }
 
-// ===== STUDENTS ADMIN =====
+// ===== SWITCH TO TEACHER =====
+window.switchToTeacher = async function() {
+  // Check if admin also has a teacher record; if not, prompt to set up
+  const userSnap = await getDoc(doc(db, 'users', currentUser.email));
+  if (userSnap.exists()) {
+    const u = userSnap.data();
+    if (!u.teacherRole) {
+      // Set up as subject teacher first
+      if (!confirm('您尚未設定老師角色。點確定將您設定為「科任老師」身分，然後前往老師介面。')) return;
+      await updateDoc(doc(db, 'users', currentUser.email), { teacherRole: 'subject', role: 'teacher' });
+      // Keep admin status separately via admins collection
+    }
+  }
+  // Navigate to teacher page (admin can still access admin page via back button)
+  window.open('../teacher/index.html', '_blank');
+};
+
+// ===== ADMIN ROSTER MANAGEMENT =====
+let adminRosterClassId = null;
+let adminImportedStudents = [];
+
+window.openAdminRosterModal = function(tab) {
+  adminRosterClassId = document.getElementById('admin-student-class').value;
+  if (!adminRosterClassId) { showToast('請先選擇班級', 'error'); return; }
+  document.getElementById('admin-roster-class-label').textContent = adminRosterClassId;
+
+  // Reset
+  document.getElementById('admin-import-text').value = '';
+  document.getElementById('admin-import-preview').style.display = 'none';
+  document.getElementById('admin-import-confirm-btn').disabled = true;
+  adminImportedStudents = [];
+
+  showModal('admin-roster-modal');
+  if (tab === 'manual') switchRosterTab('manual', document.querySelector('#admin-roster-modal .tab-btn:nth-child(2)'));
+  else if (tab === 'list') { switchRosterTab('list', document.querySelector('#admin-roster-modal .tab-btn:nth-child(3)')); loadAdminRosterList(); }
+  else switchRosterTab('import', document.querySelector('#admin-roster-modal .tab-btn:nth-child(1)'));
+};
+
+window.switchRosterTab = function(tab, btn) {
+  document.querySelectorAll('#admin-roster-modal .tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#admin-roster-modal .tab-pane').forEach(p => p.style.display = 'none');
+  btn.classList.add('active');
+  document.getElementById(`admin-roster-tab-${tab}`).style.display = 'block';
+  if (tab === 'list') loadAdminRosterList();
+};
+
+window.adminParseImport = function() {
+  const text = document.getElementById('admin-import-text').value.trim();
+  const lines = text.split('\n').filter(l => l.trim());
+  adminImportedStudents = [];
+
+  lines.forEach((line, i) => {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 3) return;
+    const [studentId, seatNo, ...nameParts] = parts;
+    adminImportedStudents.push({ studentId, seatNo: parseInt(seatNo), name: nameParts.join('') });
+  });
+
+  if (adminImportedStudents.length === 0) { showToast('無法解析，請確認格式', 'error'); return; }
+
+  document.getElementById('admin-import-count').textContent = adminImportedStudents.length;
+  let tbody = '';
+  adminImportedStudents.forEach(s => tbody += `<tr><td>${s.seatNo}</td><td>${s.studentId}</td><td>${s.name}</td></tr>`);
+  document.getElementById('admin-import-preview-tbody').innerHTML = tbody;
+  document.getElementById('admin-import-preview').style.display = 'block';
+  document.getElementById('admin-import-confirm-btn').disabled = false;
+};
+
+window.adminConfirmImport = async function() {
+  if (!adminRosterClassId || adminImportedStudents.length === 0) return;
+  const replace = document.getElementById('admin-import-replace').checked;
+
+  const batch = writeBatch(db);
+
+  if (replace) {
+    // Delete existing
+    const existing = await getDocs(query(collection(db, 'students'),
+      where('classId', '==', adminRosterClassId),
+      where('semesterYear', '==', currentSemester.year),
+      where('semesterNum', '==', currentSemester.semester)));
+    existing.docs.forEach(d => batch.delete(d.ref));
+  }
+
+  adminImportedStudents.forEach(s => {
+    const ref = doc(collection(db, 'students'));
+    batch.set(ref, {
+      classId: adminRosterClassId, studentId: s.studentId,
+      seatNo: s.seatNo, name: s.name,
+      semesterYear: currentSemester.year, semesterNum: currentSemester.semester,
+      specialMark: null, boundEmail: null, createdAt: new Date()
+    });
+  });
+
+  await batch.commit();
+  showToast(`成功匯入 ${adminImportedStudents.length} 位學生！`, 'success');
+  closeModal('admin-roster-modal');
+  loadAdminStudents();
+};
+
+window.adminAddStudent = async function() {
+  if (!adminRosterClassId) return;
+  const studentId = document.getElementById('admin-new-sid').value.trim();
+  const seatNo = parseInt(document.getElementById('admin-new-seat').value);
+  const name = document.getElementById('admin-new-name').value.trim();
+  if (!name || !seatNo) { showToast('請填寫座號與姓名', 'error'); return; }
+
+  // Check duplicate seat
+  const q = query(collection(db, 'students'),
+    where('classId', '==', adminRosterClassId),
+    where('seatNo', '==', seatNo),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const dup = await getDocs(q);
+  if (!dup.empty) { showToast(`座號 ${seatNo} 已存在`, 'error'); return; }
+
+  await addDoc(collection(db, 'students'), {
+    classId: adminRosterClassId, studentId, seatNo, name,
+    semesterYear: currentSemester.year, semesterNum: currentSemester.semester,
+    specialMark: null, boundEmail: null, createdAt: new Date()
+  });
+  showToast('新增成功', 'success');
+  ['admin-new-sid','admin-new-seat','admin-new-name'].forEach(id => document.getElementById(id).value = '');
+  loadAdminRosterList();
+  loadAdminStudents();
+};
+
+async function loadAdminRosterList() {
+  const wrap = document.getElementById('admin-roster-list-content');
+  if (!adminRosterClassId) return;
+  wrap.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+
+  const q = query(collection(db, 'students'),
+    where('classId', '==', adminRosterClassId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester),
+    orderBy('seatNo'));
+  const snap = await getDocs(q);
+  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  if (students.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>尚無學生</p></div>';
+    return;
+  }
+
+  let html = `<div class="table-wrapper" style="max-height:280px;overflow-y:auto"><table>
+    <thead><tr><th>座號</th><th>學號</th><th>姓名</th><th>綁定</th><th>操作</th></tr></thead><tbody>`;
+  const tagMap = { skip:'跳', self:'自', special:'特' };
+  for (const s of students) {
+    html += `<tr>
+      <td>${s.seatNo.toString().padStart(2,'0')}</td>
+      <td class="text-xs text-muted">${s.studentId || '—'}</td>
+      <td class="td-name">${s.name}${s.specialMark ? ` <span class="tag tag-${s.specialMark}" style="font-size:0.65rem">${tagMap[s.specialMark]}</span>` : ''}</td>
+      <td class="text-xs">${s.boundEmail ? '✅' : '—'}</td>
+      <td>
+        <button class="btn btn-danger btn-sm" onclick="adminDeleteFromModal('${s.id}','${s.name}')">刪除</button>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+window.adminDeleteFromModal = async function(id, name) {
+  if (!confirm(`刪除學生「${name}」？`)) return;
+  await deleteDoc(doc(db, 'students', id));
+  showToast(`已刪除 ${name}`, 'info');
+  loadAdminRosterList();
+  loadAdminStudents();
+};
 async function loadAdminStudents() {
   const classId = document.getElementById('admin-student-class').value;
   if (!classId) return;
+  adminRosterClassId = classId;
+  document.getElementById('admin-roster-btns').style.display = 'flex';
 
   const q = query(collection(db, 'students'),
     where('classId', '==', classId),
@@ -678,23 +979,30 @@ async function loadAdminStudents() {
 
   const wrap = document.getElementById('admin-students-wrap');
   if (students.length === 0) {
-    wrap.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>尚無學生資料</p></div>';
+    wrap.innerHTML = `<div class="empty-state"><div class="icon">👥</div>
+      <p>尚無學生資料</p>
+      <button class="btn btn-primary mt-3" onclick="openAdminRosterModal()">📋 匯入名單</button>
+    </div>`;
     return;
   }
 
   let html = `<div class="table-wrapper"><table>
-    <thead><tr><th>座號</th><th>姓名</th><th>特殊標記</th><th>綁定帳號</th><th>操作</th></tr></thead>
+    <thead><tr><th>座號</th><th>學號</th><th>姓名</th><th>特殊標記</th><th>綁定帳號</th><th>操作</th></tr></thead>
     <tbody>`;
   const tagMap = { skip:'跳級', self:'自學', special:'特教' };
   for (const s of students) {
     html += `<tr>
       <td>${s.seatNo.toString().padStart(2,'0')}</td>
+      <td class="text-sm text-muted">${s.studentId || '—'}</td>
       <td class="td-name">${s.name}</td>
       <td>${s.specialMark ? `<span class="tag tag-${s.specialMark}">${tagMap[s.specialMark]}</span>` : '—'}</td>
       <td class="text-sm">${s.boundEmail || '<span class="text-muted">未綁定</span>'}</td>
       <td>
-        ${s.boundEmail ? `<button class="btn btn-outline btn-sm" onclick="adminUnbind('${s.id}')">解除綁定</button>` : ''}
-        <button class="btn btn-danger btn-sm" onclick="adminDeleteStudent('${s.id}','${s.name}')">刪除</button>
+        <div class="action-btns">
+          <button class="btn btn-ghost btn-sm" onclick="openAdminSpecial('${s.id}','${s.name}','${classId}')">標記</button>
+          ${s.boundEmail ? `<button class="btn btn-outline btn-sm" onclick="adminUnbind('${s.id}')">解除綁定</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="adminDeleteStudent('${s.id}','${s.name}')">刪除</button>
+        </div>
       </td>
     </tr>`;
   }
@@ -713,6 +1021,55 @@ window.adminDeleteStudent = async function(id, name) {
   if (!confirm(`確定刪除學生「${name}」？此操作不可復原。`)) return;
   await deleteDoc(doc(db, 'students', id));
   showToast(`已刪除 ${name}`, 'info');
+  loadAdminStudents();
+};
+
+// ===== ADMIN SPECIAL MARK =====
+window.openAdminSpecial = async function(studentId, name, classId) {
+  document.getElementById('admin-special-name').textContent = name;
+  document.getElementById('admin-special-student-id').value = studentId;
+
+  const snap = await getDoc(doc(db, 'students', studentId));
+  const s = snap.data();
+  document.getElementById('admin-special-type').value = s.specialMark || '';
+
+  const grade = parseInt(classId.charAt(0));
+  const subjects = grade <= 2 ? SUBJECTS_BY_GRADE[1] : grade <= 4 ? SUBJECTS_BY_GRADE[3] : SUBJECTS_BY_GRADE[5];
+  const subSel = document.getElementById('admin-skip-subjects');
+  subSel.innerHTML = subjects.map(sub => `<option value="${sub.id}">${sub.name}</option>`).join('');
+  if (s.skipSubjects) s.skipSubjects.forEach(sv => {
+    Array.from(subSel.options).forEach(o => { if (o.value === sv) o.selected = true; });
+  });
+
+  const clsSel = document.getElementById('admin-skip-class');
+  clsSel.innerHTML = '<option value="">請選擇</option>' + ALL_CLASSES.map(c => `<option value="${c}">${c}班</option>`).join('');
+  if (s.skipClass) clsSel.value = s.skipClass;
+
+  document.getElementById('admin-special-type').onchange = function() {
+    document.getElementById('admin-skip-detail').style.display = this.value === 'skip' ? 'block' : 'none';
+  };
+  document.getElementById('admin-skip-detail').style.display = s.specialMark === 'skip' ? 'block' : 'none';
+
+  showModal('admin-special-modal');
+};
+
+window.adminSaveSpecial = async function() {
+  const id = document.getElementById('admin-special-student-id').value;
+  const type = document.getElementById('admin-special-type').value;
+  const updates = { specialMark: type || null };
+
+  if (type === 'skip') {
+    const sel = document.getElementById('admin-skip-subjects');
+    updates.skipSubjects = Array.from(sel.selectedOptions).map(o => o.value);
+    updates.skipClass = document.getElementById('admin-skip-class').value;
+  } else {
+    updates.skipSubjects = null;
+    updates.skipClass = null;
+  }
+
+  await updateDoc(doc(db, 'students', id), updates);
+  showToast('標記已儲存', 'success');
+  closeModal('admin-special-modal');
   loadAdminStudents();
 };
 

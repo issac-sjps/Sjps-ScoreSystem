@@ -422,6 +422,11 @@
       <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
       <div class="topbar-title" id="topbar-title">首頁總覽</div>
       <div class="topbar-actions">
+        <div id="admin-back-btn" style="display:none">
+          <button class="btn btn-ghost btn-sm" onclick="window.location.href='../admin/index.html'" style="border-color:var(--accent);color:var(--accent)">
+            🛡️ 回到後台
+          </button>
+        </div>
         <div class="semester-selector">
           <span>學期：</span>
           <select id="semester-select-top" onchange="changeSemester()"></select>
@@ -681,6 +686,13 @@ async function loadUserData() {
       populateFirstLoginModal();
       showModal('first-login-modal');
     }
+  }
+
+  // Check if this user is also an admin → show "回到後台" button
+  const adminsSnap = await getDocs(collection(db, 'admins'));
+  const adminEmails = adminsSnap.docs.map(d => d.data().email);
+  if (adminEmails.includes(currentUser.email)) {
+    document.getElementById('admin-back-btn').style.display = 'block';
   }
 }
 
