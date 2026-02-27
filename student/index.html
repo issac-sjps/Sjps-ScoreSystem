@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>學生成績查詢 - 新莊國小成績系統</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .score-card {
+      background: white;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--gray-100);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .score-card-header {
+      padding: 14px 20px;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .score-card-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .score-card-body { padding: 0; }
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--gray-100);
+      transition: background 0.1s;
+    }
+    .score-row:last-child { border-bottom: none; }
+    .score-row:hover { background: var(--gray-50); }
+    .score-subject { font-weight: 500; font-size: 0.9rem; }
+    .score-detail { font-size: 0.75rem; color: var(--gray-400); margin-top: 2px; }
+    .score-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--primary);
+      min-width: 60px;
+      text-align: right;
+    }
+    .score-value.pending { font-size: 0.8rem; color: var(--gray-400); font-weight: 400; }
+
+    .domain-table { width: 100%; }
+    .domain-table th { background: var(--gray-100); padding: 8px 16px; font-size: 0.82rem; text-align: left; }
+    .domain-table td { padding: 8px 16px; border-bottom: 1px solid var(--gray-100); font-size: 0.88rem; }
+    .domain-avg { font-weight: 700; color: var(--primary); }
+
+    .flex-subjects { background: #fffbeb; }
+
+    .binding-card {
+      background: white;
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      box-shadow: var(--shadow);
+      max-width: 420px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .binding-icon { font-size: 3rem; margin-bottom: 16px; }
+    .binding-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+    .binding-desc { font-size: 0.85rem; color: var(--gray-500); margin-bottom: 24px; line-height: 1.6; }
+
+    .summary-bar {
+      background: var(--primary);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .summary-item { text-align: center; }
+    .summary-label { font-size: 0.72rem; opacity: 0.8; }
+    .summary-value { font-size: 1.4rem; font-weight: 700; line-height: 1; }
+
+    .skip-grade-section {
+      margin-top: 24px;
+      border: 2px dashed #93c5fd;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .skip-grade-header {
+      background: #dbeafe;
+      padding: 12px 20px;
+      font-weight: 700;
+      color: #1d4ed8;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="logo-text">新莊國小</div>
+  <div class="sub-text">成績查詢系統</div>
+</div>
+
+<!-- Binding Modal -->
+<div class="modal-overlay" id="binding-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🔗 綁定學生資料</div>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info mb-3">
+        請輸入您的班級資訊，系統將比對名單並綁定您的帳號。<br>
+        <strong>注意：</strong>名單需由班導師建立後才能綁定。
+      </div>
+      <div class="form-group">
+        <label class="form-label">年級</label>
+        <select class="form-control" id="bind-grade">
+          <option value="">請選擇</option>
+          <option>1</option><option>2</option><option>3</option>
+          <option>4</option><option>5</option><option>6</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">班級</label>
+        <select class="form-control" id="bind-class">
+          <option value="">請先選年級</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">座號</label>
+        <input type="number" class="form-control" id="bind-seat" min="1" max="50" placeholder="1">
+      </div>
+      <div class="form-group">
+        <label class="form-label">姓名</label>
+        <input type="text" class="form-control" id="bind-name" placeholder="王小明">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="doLogout()">登出</button>
+      <button class="btn btn-primary" onclick="bindStudent()">確認綁定</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">新莊國小<span>成績查詢</span></div>
+      <div class="semester-badge" id="sidebar-semester">114學年度 第二學期</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">查詢</div>
+      <div class="nav-item active" onclick="showPage('scores')" id="nav-scores">
+        <span class="icon">📊</span> 我的成績
+      </div>
+      <div class="nav-item" onclick="showPage('history')" id="nav-history">
+        <span class="icon">📅</span> 歷史成績
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">？</div>
+        <div>
+          <div class="user-name" id="user-name-display">載入中...</div>
+          <div class="user-role" id="user-role-display">學生</div>
+        </div>
+        <button class="logout-btn" onclick="doLogout()" title="登出">⬡</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <div class="topbar-title" id="topbar-title">我的成績</div>
+      <div class="topbar-actions">
+        <div class="semester-selector">
+          <span>學期：</span>
+          <select id="semester-select-top" onchange="changeSemester()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- Scores page -->
+      <div id="page-scores">
+        <div id="scores-loading" class="empty-state">
+          <div class="spinner" style="margin:auto;border-color:var(--gray-200);border-top-color:var(--primary)"></div>
+          <p class="mt-2">載入成績中...</p>
+        </div>
+        <div id="scores-content" style="display:none"></div>
+      </div>
+
+      <!-- History page -->
+      <div id="page-history" style="display:none">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📅 歷年成績記錄</div></div>
+          <div class="card-body" id="history-content">
+            <div class="empty-state"><div class="icon">📚</div><p>請從上方切換學年學期查看</p></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc,
+  collection, getDocs, query, where, orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA8m4nHUZ9jjZadMaUxZtXau7G44ChZeJY",
+  authDomain: "sjps-scoresystem.firebaseapp.com",
+  projectId: "sjps-scoresystem",
+  storageBucket: "sjps-scoresystem.firebasestorage.app",
+  messagingSenderId: "786097431395",
+  appId: "1:786097431795:web:1469342ed3c53b6c1ee956"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const SUBJECTS_BY_GRADE = {
+  1: [{id:"chinese",name:"國語文",domain:"language"},{id:"native",name:"本土語文",domain:"language"},
+      {id:"life",name:"生活課程",domain:"life"},{id:"math",name:"數學",domain:"math"},
+      {id:"health",name:"健康",domain:"health_pe"},{id:"pe",name:"體育",domain:"health_pe"},
+      {id:"flex1",name:"彈性一（世界之窗）",domain:"flex"},{id:"flex2",name:"彈性二（新莊萬花筒）",domain:"flex"},
+      {id:"flex3",name:"彈性三（國際+閱讀）",domain:"flex"}],
+  3: [{id:"chinese",name:"國語文",domain:"language"},{id:"english",name:"英語",domain:"language"},
+      {id:"native",name:"本土語文",domain:"language"},{id:"social",name:"社會",domain:"social"},
+      {id:"science",name:"自然科學",domain:"science"},{id:"math",name:"數學",domain:"math"},
+      {id:"health",name:"健康",domain:"health_pe"},{id:"pe",name:"體育",domain:"health_pe"},
+      {id:"art_music",name:"藝音",domain:"art"},{id:"art_perf",name:"藝表",domain:"art"},
+      {id:"art_visual",name:"藝視",domain:"art"},{id:"comprehensive",name:"綜合活動",domain:"comprehensive"},
+      {id:"flex1",name:"彈性一",domain:"flex"},{id:"flex2",name:"彈性二",domain:"flex"},
+      {id:"flex3",name:"彈性三",domain:"flex"},{id:"flex4",name:"彈性四",domain:"flex"}],
+  5: [{id:"chinese",name:"國語文",domain:"language"},{id:"english",name:"英語",domain:"language"},
+      {id:"native",name:"本土語文",domain:"language"},{id:"social",name:"社會",domain:"social"},
+      {id:"science",name:"自然科學",domain:"science"},{id:"math",name:"數學",domain:"math"},
+      {id:"health",name:"健康",domain:"health_pe"},{id:"pe",name:"體育",domain:"health_pe"},
+      {id:"art_music",name:"藝音",domain:"art"},{id:"art_perf",name:"藝表",domain:"art"},
+      {id:"art_visual",name:"藝視",domain:"art"},{id:"comprehensive",name:"綜合活動",domain:"comprehensive"},
+      {id:"flex1",name:"彈性一",domain:"flex"},{id:"flex2",name:"彈性二",domain:"flex"},
+      {id:"flex3",name:"彈性三",domain:"flex"},{id:"flex4",name:"彈性四",domain:"flex"},
+      {id:"flex5",name:"彈性五",domain:"flex"},{id:"flex6",name:"彈性六",domain:"flex"}]
+};
+
+const DOMAIN_NAMES = {
+  language:"語文", life:"生活課程", math:"數學", health_pe:"健康與體育",
+  social:"社會", science:"自然科學", art:"藝術", comprehensive:"綜合活動", flex:"彈性課程"
+};
+
+const ALL_CLASSES = ["101","102","103","104","105","106","201","202","203","204","205","206",
+  "301","302","303","304","305","306","307","401","402","403","404","405","406","407","408","409",
+  "501","502","503","504","505","506","507","508","601","602","603","604","605","606","607","608"];
+
+let currentUser = null, userData = null, studentData = null;
+let currentSemester = { year: 114, semester: 2 };
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = '../index.html'; return; }
+  currentUser = user;
+  await loadUserData();
+  await loadCurrentSemester();
+  initSemesterSelector();
+  hideLoading();
+
+  if (!studentData) {
+    showModal('binding-modal');
+    setupBindModal();
+  } else {
+    await loadScores();
+  }
+});
+
+async function loadUserData() {
+  const snap = await getDoc(doc(db, 'users', currentUser.email));
+  if (snap.exists()) {
+    userData = snap.data();
+    document.getElementById('user-name-display').textContent = userData.displayName || currentUser.email;
+    const av = document.getElementById('user-avatar');
+    if (userData.photoURL) av.innerHTML = `<img src="${userData.photoURL}">`;
+    else av.textContent = (userData.displayName || '?').charAt(0);
+  }
+
+  // Find student binding for current semester
+  await findStudentBinding();
+}
+
+async function findStudentBinding() {
+  const q = query(collection(db, 'students'),
+    where('boundEmail', '==', currentUser.email),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    studentData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+    document.getElementById('user-role-display').textContent = `${studentData.classId}班 ${studentData.seatNo}號`;
+  }
+}
+
+async function loadCurrentSemester() {
+  const snap = await getDoc(doc(db, 'settings', 'currentSemester'));
+  if (snap.exists()) currentSemester = snap.data();
+  document.getElementById('sidebar-semester').textContent =
+    `${currentSemester.year}學年度 第${currentSemester.semester === 1 ? '一' : '二'}學期`;
+}
+
+// ===== BINDING =====
+function setupBindModal() {
+  const gradeEl = document.getElementById('bind-grade');
+  const classEl = document.getElementById('bind-class');
+  gradeEl.addEventListener('change', function() {
+    const g = parseInt(this.value);
+    classEl.innerHTML = '<option value="">請選擇</option>';
+    if (!g) return;
+    ALL_CLASSES.filter(c => parseInt(c.charAt(0)) === g)
+      .forEach(c => classEl.innerHTML += `<option value="${c}">${c}班</option>`);
+  });
+}
+
+window.bindStudent = async function() {
+  const grade = document.getElementById('bind-grade').value;
+  const classId = document.getElementById('bind-class').value;
+  const seat = parseInt(document.getElementById('bind-seat').value);
+  const name = document.getElementById('bind-name').value.trim();
+
+  if (!grade || !classId || !seat || !name) { showToast('請填寫所有欄位', 'error'); return; }
+
+  // Find matching student
+  const q = query(collection(db, 'students'),
+    where('classId', '==', classId),
+    where('seatNo', '==', seat),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const snap = await getDocs(q);
+
+  if (snap.empty) {
+    showToast('找不到符合的學生資料，請確認班導師已建立名單，或等待老師建立後再試', 'warning');
+    return;
+  }
+
+  const studentDoc = snap.docs[0];
+  const st = studentDoc.data();
+  if (st.name !== name) {
+    showToast('姓名不符，請確認輸入是否正確', 'error');
+    return;
+  }
+
+  if (st.boundEmail && st.boundEmail !== currentUser.email) {
+    showToast('此座號已被其他帳號綁定，如有疑問請聯絡班導師', 'error');
+    return;
+  }
+
+  // Bind
+  await setDoc(doc(db, 'students', studentDoc.id), { ...st, boundEmail: currentUser.email }, { merge: true });
+  studentData = { id: studentDoc.id, ...st, boundEmail: currentUser.email };
+  document.getElementById('user-role-display').textContent = `${classId}班 ${seat}號`;
+  showToast('綁定成功！', 'success');
+  closeModal('binding-modal');
+  await loadScores();
+};
+
+// ===== SCORES =====
+async function loadScores() {
+  if (!studentData) return;
+  document.getElementById('scores-loading').style.display = 'flex';
+  document.getElementById('scores-content').style.display = 'none';
+
+  const classId = studentData.classId;
+  const grade = parseInt(classId.charAt(0));
+  const subjects = grade <= 2 ? SUBJECTS_BY_GRADE[1] : grade <= 4 ? SUBJECTS_BY_GRADE[3] : SUBJECTS_BY_GRADE[5];
+
+  // Get all assignments for this class
+  const assignSnap = await getDocs(query(collection(db, 'assignments'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester)));
+  const assignments = assignSnap.docs.map(d => d.data());
+
+  // Get all grades for this student
+  const gradesSnap = await getDocs(query(collection(db, 'grades'),
+    where('studentId', '==', studentData.id),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester)));
+  const gradesMap = {};
+  gradesSnap.docs.forEach(d => {
+    const g = d.data();
+    const key = `${g.subjectId}-${g.section}-${g.item}`;
+    gradesMap[key] = g.score;
+  });
+
+  // Compute final scores per subject
+  const subjectScores = {};
+  for (const subj of subjects) {
+    const wId = `${currentSemester.year}-${currentSemester.semester}-${classId}-${subj.id}`;
+    const wSnap = await getDoc(doc(db, 'gradeWeights', wId));
+    const w = wSnap.exists() ? wSnap.data() : { w1:25, w2:25, w3:25, w4:25 };
+    const lockSnap = await getDoc(doc(db, 'gradeLocks', wId));
+    const locked = lockSnap.exists() && lockSnap.data().locked;
+
+    const sections = { '1': w.w1, '2': w.w2, 'exam1': w.w3, 'exam2': w.w4 };
+    let total = 0, totalW = 0;
+    let hasAny = false;
+
+    // For sections with items, average the items first
+    for (const [sec, sw] of Object.entries(sections)) {
+      if (sw === 0) continue;
+      const relevantGrades = Object.entries(gradesMap)
+        .filter(([k]) => k.startsWith(`${subj.id}-${sec}-`))
+        .map(([,v]) => v);
+      if (relevantGrades.length > 0) {
+        const avg = relevantGrades.reduce((a,b)=>a+b,0)/relevantGrades.length;
+        total += avg * sw / 100;
+        totalW += sw;
+        hasAny = true;
+      }
+    }
+
+    let finalScore = null;
+    if (hasAny && totalW > 0) finalScore = total * 100 / totalW;
+
+    // Check for multi-teacher subjects (hours split)
+    const teacherAssigns = assignments.filter(a => a.subjectId === subj.id);
+    subjectScores[subj.id] = { score: finalScore, locked, teachers: teacherAssigns.length };
+  }
+
+  // Render
+  let html = '';
+
+  // Summary bar
+  const scores = Object.values(subjectScores).map(s => s.score).filter(s => s !== null);
+  const nonFlexSubjs = subjects.filter(s => s.domain !== 'flex');
+  const nonFlexScores = nonFlexSubjs.map(s => subjectScores[s.id]?.score).filter(v => v !== null);
+  const genAvg = nonFlexScores.length > 0 ? (nonFlexScores.reduce((a,b)=>a+b,0)/nonFlexScores.length).toFixed(2) : '—';
+
+  // Domain average
+  const domainGroups = {};
+  for (const subj of nonFlexSubjs) {
+    const sc = subjectScores[subj.id]?.score;
+    if (sc !== null && sc !== undefined) {
+      if (!domainGroups[subj.domain]) domainGroups[subj.domain] = [];
+      domainGroups[subj.domain].push(sc);
+    }
+  }
+  const domainAvgs = Object.values(domainGroups).map(arr => arr.reduce((a,b)=>a+b,0)/arr.length);
+  const domainAvg = domainAvgs.length > 0 ? (domainAvgs.reduce((a,b)=>a+b,0)/domainAvgs.length).toFixed(2) : '—';
+
+  html += `<div class="summary-bar" style="border-radius:var(--radius-lg) var(--radius-lg) 0 0;margin-bottom:-1px">
+    <div style="flex:1">
+      <div style="font-family:var(--font-serif);font-size:1rem;font-weight:700">${studentData.classId}班 ${studentData.seatNo}號</div>
+      <div style="font-size:0.8rem;opacity:0.8">${currentSemester.year}學年度 第${currentSemester.semester===1?'一':'二'}學期</div>
+    </div>
+    <div class="summary-item"><div class="summary-label">一般平均</div><div class="summary-value">${genAvg}</div></div>
+    <div class="summary-item"><div class="summary-label">領域平均</div><div class="summary-value">${domainAvg}</div></div>
+  </div>`;
+
+  // Non-flex subjects grouped by domain
+  const domainOrder = ['language','life','math','health_pe','social','science','art','comprehensive'];
+  const grouped = {};
+  for (const subj of nonFlexSubjs) {
+    if (!grouped[subj.domain]) grouped[subj.domain] = [];
+    grouped[subj.domain].push(subj);
+  }
+
+  for (const domain of domainOrder) {
+    if (!grouped[domain]) continue;
+    const domSubjs = grouped[domain];
+    const domScores = domSubjs.map(s => subjectScores[s.id]?.score).filter(v => v !== null);
+    const dAvg = domScores.length > 0 ? (domScores.reduce((a,b)=>a+b,0)/domScores.length).toFixed(2) : null;
+
+    html += `<div class="score-card">
+      <div class="score-card-header">
+        <div class="score-card-title">${DOMAIN_NAMES[domain]}</div>
+        ${dAvg ? `<div>領域：<strong>${dAvg}</strong></div>` : ''}
+      </div>
+      <div class="score-card-body">`;
+
+    for (const subj of domSubjs) {
+      const sc = subjectScores[subj.id];
+      const isSkip = studentData.specialMark === 'skip' && studentData.skipSubjects?.includes(subj.id);
+      const locked = sc?.locked;
+
+      html += `<div class="score-row ${isSkip ? 'text-muted' : ''}">
+        <div>
+          <div class="score-subject">${subj.name}</div>
+          <div class="score-detail">
+            <span class="light-dot ${locked ? 'light-green' : 'light-red'}" style="width:8px;height:8px;display:inline-block;vertical-align:middle;margin-right:4px"></span>
+            ${locked ? '已鎖定' : '尚未鎖定，非最終成績'}
+            ${isSkip ? ' · <span class="tag tag-skip">跳級科目</span>' : ''}
+          </div>
+        </div>
+        <div class="score-value ${isSkip || sc?.score === null ? 'pending' : ''}">
+          ${isSkip ? '(跳級)' : sc?.score !== null && sc?.score !== undefined ? sc.score.toFixed(1) : '待輸入'}
+        </div>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+
+  // Flex subjects
+  const flexSubjs = subjects.filter(s => s.domain === 'flex');
+  if (flexSubjs.length > 0) {
+    const flexScores = flexSubjs.map(s => subjectScores[s.id]?.score).filter(v => v !== null);
+    const flexAvg = flexScores.length > 0 ? (flexScores.reduce((a,b)=>a+b,0)/flexScores.length).toFixed(2) : null;
+
+    html += `<div class="score-card flex-subjects">
+      <div class="score-card-header" style="background:#d97706">
+        <div class="score-card-title">彈性課程</div>
+        ${flexAvg ? `<div>平均：<strong>${flexAvg}</strong></div>` : ''}
+      </div>
+      <div class="score-card-body">`;
+    for (const subj of flexSubjs) {
+      const sc = subjectScores[subj.id];
+      html += `<div class="score-row">
+        <div><div class="score-subject">${subj.name}</div>
+        <div class="score-detail text-xs">彈性課程（不計入一般/領域平均）</div></div>
+        <div class="score-value ${sc?.score === null ? 'pending' : ''}">
+          ${sc?.score !== null && sc?.score !== undefined ? sc.score.toFixed(1) : '待輸入'}
+        </div>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+
+  // Skip grade section (if student is a skip student)
+  if (studentData.specialMark === 'skip' && studentData.skipSubjects?.length > 0 && studentData.skipClass) {
+    html += `<div class="skip-grade-section">
+      <div class="skip-grade-header">📌 跳級科目成績（${studentData.skipClass}班）</div>
+      <div class="score-card-body">`;
+
+    for (const subjId of studentData.skipSubjects) {
+      const wId = `${currentSemester.year}-${currentSemester.semester}-${studentData.skipClass}-${subjId}`;
+      const skipGradesSnap = await getDocs(query(collection(db, 'grades'),
+        where('studentId', '==', studentData.id),
+        where('subjectId', '==', subjId),
+        where('semesterYear', '==', currentSemester.year),
+        where('semesterNum', '==', currentSemester.semester)));
+      const lockSnap = await getDoc(doc(db, 'gradeLocks', wId));
+      const locked = lockSnap.exists() && lockSnap.data().locked;
+
+      const skipGrades = skipGradesSnap.docs.map(d => d.data().score);
+      const skipAvg = skipGrades.length > 0 ? (skipGrades.reduce((a,b)=>a+b,0)/skipGrades.length).toFixed(1) : null;
+
+      html += `<div class="score-row">
+        <div>
+          <div class="score-subject">${subjId}</div>
+          <div class="score-detail">跳級至 ${studentData.skipClass}班 · <span class="light-dot ${locked?'light-green':'light-red'}" style="width:8px;height:8px;display:inline-block;vertical-align:middle"></span> ${locked?'已鎖定':'未鎖定'}</div>
+          <div class="text-xs text-muted">此科目不列入本班成績計算</div>
+        </div>
+        <div class="score-value ${!skipAvg ? 'pending' : ''}">${skipAvg || '待輸入'}</div>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+
+  document.getElementById('scores-content').innerHTML = html;
+  document.getElementById('scores-loading').style.display = 'none';
+  document.getElementById('scores-content').style.display = 'block';
+}
+
+// ===== SEMESTER =====
+function initSemesterSelector() {
+  const sel = document.getElementById('semester-select-top');
+  sel.innerHTML = '';
+  for (let y = 114; y >= 111; y--) {
+    for (let s = 2; s >= 1; s--) {
+      const opt = document.createElement('option');
+      opt.value = `${y}-${s}`;
+      opt.textContent = `${y}年度 第${s===1?'一':'二'}學期`;
+      if (y === currentSemester.year && s === currentSemester.semester) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+window.changeSemester = async function() {
+  const [y, s] = document.getElementById('semester-select-top').value.split('-').map(Number);
+  currentSemester = { year: y, semester: s };
+  document.getElementById('sidebar-semester').textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
+  studentData = null;
+  await findStudentBinding();
+  if (studentData) await loadScores();
+  else document.getElementById('scores-content').innerHTML = `<div class="alert alert-warning">此學期尚未綁定班級資料</div>`;
+};
+
+async function findStudentBinding() {
+  const q = query(collection(db, 'students'),
+    where('boundEmail', '==', currentUser.email),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    studentData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+    document.getElementById('user-role-display').textContent = `${studentData.classId}班 ${studentData.seatNo}號`;
+  }
+}
+
+// ===== HELPERS =====
+window.showPage = function(page) {
+  document.querySelectorAll('[id^="page-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + page).style.display = 'block';
+  const navEl = document.getElementById('nav-' + page);
+  if (navEl) navEl.classList.add('active');
+};
+
+function hideLoading() {
+  const el = document.getElementById('loading-screen');
+  el.style.opacity = '0';
+  setTimeout(() => el.style.display = 'none', 400);
+}
+
+window.showModal = id => document.getElementById(id).style.display = 'flex';
+window.closeModal = id => document.getElementById(id).style.display = 'none';
+window.doLogout = async () => { await signOut(auth); window.location.href = '../index.html'; };
+window.showToast = function(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+};
+</script>
+</body>
+</html>
