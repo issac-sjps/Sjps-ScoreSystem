@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理員後台 - 新莊國小成績系統</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .admin-badge { background: #fef3c7; color: #92400e; padding: 3px 8px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+    .user-table-row td { vertical-align: middle; }
+    .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    .semester-config { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media(max-width:600px) { .semester-config { grid-template-columns: 1fr; } }
+
+    .assignment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .assignment-card {
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: white;
+    }
+    .assignment-card-header {
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+      border-bottom: 1px solid var(--gray-100);
+      padding-bottom: 8px;
+    }
+    .assignment-subject {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+      padding: 4px 0;
+      border-bottom: 1px solid var(--gray-50);
+    }
+    .assignment-subject:last-child { border-bottom: none; }
+    .teacher-chip {
+      font-size: 0.72rem;
+      background: var(--primary-pale);
+      color: var(--primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .unbound-chip {
+      font-size: 0.72rem;
+      background: var(--danger-light);
+      color: var(--danger);
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="logo-text">新莊國小</div>
+  <div class="sub-text">管理員後台</div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="edit-user-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✏️ 編輯使用者</div>
+      <button class="modal-close" onclick="closeModal('edit-user-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="text" class="form-control" id="edit-email" disabled>
+      </div>
+      <div class="form-group">
+        <label class="form-label">真實姓名</label>
+        <input type="text" class="form-control" id="edit-name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">角色</label>
+        <select class="form-control" id="edit-role">
+          <option value="teacher">老師</option>
+          <option value="student">學生</option>
+          <option value="admin">管理員</option>
+        </select>
+      </div>
+      <div class="form-group" id="edit-teacher-role-group">
+        <label class="form-label">老師角色</label>
+        <select class="form-control" id="edit-teacher-role">
+          <option value="homeroom">導師</option>
+          <option value="subject">科任老師</option>
+        </select>
+      </div>
+      <div class="form-group" id="edit-homeroom-class-group">
+        <label class="form-label">導師班級</label>
+        <select class="form-control" id="edit-homeroom-class">
+          <option value="">請選擇</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('edit-user-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveEditUser()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Announcement Modal -->
+<div class="modal-overlay" id="ann-edit-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📢 新增／編輯公告</div>
+      <button class="modal-close" onclick="closeModal('ann-edit-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">公告標題</label>
+        <input type="text" class="form-control" id="ann-title-input" placeholder="例如：請記得輸入校務系統成績">
+      </div>
+      <div class="form-group">
+        <label class="form-label">公告內容</label>
+        <textarea class="form-control" id="ann-content-input" rows="4" placeholder="公告詳細內容..."></textarea>
+      </div>
+      <div class="semester-config">
+        <div class="form-group">
+          <label class="form-label">顯示開始日期</label>
+          <input type="date" class="form-control" id="ann-start">
+        </div>
+        <div class="form-group">
+          <label class="form-label">顯示結束日期</label>
+          <input type="date" class="form-control" id="ann-end">
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="ann-active" checked>
+        <span class="text-sm">啟用此公告</span>
+      </label>
+      <input type="hidden" id="ann-edit-id">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('ann-edit-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveAnnouncement()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Semester Config Modal -->
+<div class="modal-overlay" id="semester-config-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📅 設定當前學期</div>
+      <button class="modal-close" onclick="closeModal('semester-config-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">學年度</label>
+        <input type="number" class="form-control" id="sem-year" placeholder="114">
+      </div>
+      <div class="form-group">
+        <label class="form-label">學期</label>
+        <select class="form-control" id="sem-num">
+          <option value="1">第一學期</option>
+          <option value="2" selected>第二學期</option>
+        </select>
+      </div>
+      <div class="semester-config">
+        <div class="form-group">
+          <label class="form-label">學期開始日期</label>
+          <input type="date" class="form-control" id="sem-start">
+        </div>
+        <div class="form-group">
+          <label class="form-label">學期結束日期</label>
+          <input type="date" class="form-control" id="sem-end">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('semester-config-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveSemesterConfig()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Admin Modal -->
+<div class="modal-overlay" id="add-admin-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🛡️ 新增管理員</div>
+      <button class="modal-close" onclick="closeModal('add-admin-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">管理員 Email</label>
+        <input type="email" class="form-control" id="new-admin-email" placeholder="example@sjps.kh.edu.tw">
+      </div>
+      <div class="form-group">
+        <label class="form-label">姓名</label>
+        <input type="text" class="form-control" id="new-admin-name" placeholder="王小明">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('add-admin-modal')">取消</button>
+      <button class="btn btn-primary" onclick="addAdmin()">新增</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">新莊國小<span>管理員後台</span></div>
+      <div class="semester-badge" id="sidebar-semester">114學年度 第二學期</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">總覽</div>
+      <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard"><span class="icon">🏠</span> 後台首頁</div>
+      <div class="nav-section">使用者</div>
+      <div class="nav-item" onclick="showPage('users')" id="nav-users"><span class="icon">👥</span> 使用者管理</div>
+      <div class="nav-item" onclick="showPage('admins')" id="nav-admins"><span class="icon">🛡️</span> 管理員清單</div>
+      <div class="nav-section">班級設定</div>
+      <div class="nav-item" onclick="showPage('assignments')" id="nav-assignments"><span class="icon">🔗</span> 老師任課管理</div>
+      <div class="nav-item" onclick="showPage('students')" id="nav-students"><span class="icon">🎒</span> 學生資料管理</div>
+      <div class="nav-section">系統設定</div>
+      <div class="nav-item" onclick="showPage('semester')" id="nav-semester"><span class="icon">📅</span> 學期設定</div>
+      <div class="nav-item" onclick="showPage('announcements')" id="nav-announcements"><span class="icon">📢</span> 公告管理</div>
+      <div class="nav-section">報表</div>
+      <div class="nav-item" onclick="showPage('reports')" id="nav-reports"><span class="icon">📊</span> 成績報表匯出</div>
+      <div class="nav-item" onclick="showPage('skiplist')" id="nav-skiplist"><span class="icon">📌</span> 跳級生名單</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">A</div>
+        <div>
+          <div class="user-name" id="user-name-display">管理員</div>
+          <div class="user-role"><span class="admin-badge">管理員</span></div>
+        </div>
+        <button class="logout-btn" onclick="doLogout()" title="登出">⬡</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <div class="topbar">
+      <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <div class="topbar-title" id="topbar-title">後台首頁</div>
+      <div class="topbar-actions">
+        <div class="semester-selector">
+          <span>學期：</span>
+          <select id="semester-select-top" onchange="changeSemester()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- Dashboard -->
+      <div id="page-dashboard">
+        <div class="stats-grid" id="admin-stats">
+          <div class="stat-card"><div class="stat-label">老師數</div><div class="stat-value" id="stat-teachers">—</div></div>
+          <div class="stat-card"><div class="stat-label">學生數</div><div class="stat-value" id="stat-students">—</div></div>
+          <div class="stat-card"><div class="stat-label">班級數</div><div class="stat-value">44</div></div>
+          <div class="stat-card"><div class="stat-label">已鎖定科目</div><div class="stat-value" id="stat-locks">—</div></div>
+        </div>
+        <div class="alert alert-info">
+          歡迎使用新莊國小成績管理系統後台。請從左側選單選擇功能。
+        </div>
+      </div>
+
+      <!-- Users -->
+      <div id="page-users" style="display:none">
+        <div class="flex items-center justify-between mb-4">
+          <div style="display:flex;gap:8px">
+            <input type="text" class="form-control" id="user-search" placeholder="搜尋姓名或Email..." style="width:240px" oninput="filterUsers()">
+            <select class="form-control" id="user-role-filter" onchange="filterUsers()" style="width:120px">
+              <option value="">全部</option>
+              <option value="teacher">老師</option>
+              <option value="student">學生</option>
+            </select>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body" id="users-table-wrap">
+            <div class="empty-state"><div class="spinner" style="margin:auto"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admins -->
+      <div id="page-admins" style="display:none">
+        <div class="flex items-center justify-between mb-4">
+          <div class="card-title">管理員清單</div>
+          <button class="btn btn-primary btn-sm" onclick="showModal('add-admin-modal')">+ 新增管理員</button>
+        </div>
+        <div class="card">
+          <div class="card-body" id="admins-table-wrap">
+            <div class="empty-state"><div class="spinner" style="margin:auto"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assignments -->
+      <div id="page-assignments" style="display:none">
+        <div class="alert alert-info mb-4">
+          每個班級的每個科目只能由一位老師任教。點選「未指派」可為該科目指派老師。
+        </div>
+        <div class="form-group" style="max-width:200px">
+          <label class="form-label">選擇班級查看</label>
+          <select class="form-control" id="assign-class-filter" onchange="loadAssignments()">
+            <option value="">全部班級</option>
+          </select>
+        </div>
+        <div id="assignments-content">
+          <div class="empty-state"><div class="spinner" style="margin:auto"></div></div>
+        </div>
+      </div>
+
+      <!-- Students Admin -->
+      <div id="page-students" style="display:none">
+        <div class="flex items-center gap-3 mb-4">
+          <select class="form-control" id="admin-student-class" onchange="loadAdminStudents()" style="width:160px">
+            <option value="">-- 選擇班級 --</option>
+          </select>
+        </div>
+        <div class="card">
+          <div class="card-body" id="admin-students-wrap">
+            <div class="empty-state"><div class="icon">👥</div><p>請選擇班級</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Semester Config -->
+      <div id="page-semester" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📅 學期日期設定</div>
+            <button class="btn btn-primary btn-sm" onclick="showModal('semester-config-modal')" style="margin-left:auto">設定當前學期</button>
+          </div>
+          <div class="card-body" id="semester-config-display">
+            <div class="empty-state"><div class="spinner" style="margin:auto"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Announcements -->
+      <div id="page-announcements" style="display:none">
+        <div class="flex items-center justify-between mb-4">
+          <div class="card-title">公告管理</div>
+          <button class="btn btn-primary btn-sm" onclick="openAnnModal()">+ 新增公告</button>
+        </div>
+        <div class="card">
+          <div class="card-body" id="announcements-list">
+            <div class="empty-state"><div class="spinner" style="margin:auto"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reports -->
+      <div id="page-reports" style="display:none">
+        <div class="card mb-4">
+          <div class="card-header"><div class="card-title">📊 成績報表匯出</div></div>
+          <div class="card-body">
+            <div class="form-group" style="max-width:200px">
+              <label class="form-label">選擇班級（留空=全校）</label>
+              <select class="form-control" id="report-class">
+                <option value="">全校</option>
+              </select>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+              <button class="btn btn-primary" onclick="exportReportExcel()">📥 匯出 Excel</button>
+              <button class="btn btn-outline" onclick="exportReportPDF()">📄 匯出 PDF</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skip List -->
+      <div id="page-skiplist" style="display:none">
+        <div class="flex items-center justify-between mb-4">
+          <div class="card-title">📌 跳級生名單</div>
+          <button class="btn btn-primary btn-sm" onclick="exportSkipList()">📥 匯出 Excel</button>
+        </div>
+        <div class="card">
+          <div class="card-body" id="skip-list-content">
+            <div class="empty-state"><div class="spinner" style="margin:auto"></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
+  collection, getDocs, query, where, orderBy, addDoc, writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA8m4nHUZ9jjZadMaUxZtXau7G44ChZeJY",
+  authDomain: "sjps-scoresystem.firebaseapp.com",
+  projectId: "sjps-scoresystem",
+  storageBucket: "sjps-scoresystem.firebasestorage.app",
+  messagingSenderId: "786097431395",
+  appId: "1:786097431795:web:1469342ed3c53b6c1ee956"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const ALL_CLASSES = ["101","102","103","104","105","106","201","202","203","204","205","206",
+  "301","302","303","304","305","306","307","401","402","403","404","405","406","407","408","409",
+  "501","502","503","504","505","506","507","508","601","602","603","604","605","606","607","608"];
+
+const SUBJECTS_BY_GRADE = {
+  1:[{id:"chinese",name:"國語文"},{id:"native",name:"本土語文"},{id:"life",name:"生活課程"},
+     {id:"math",name:"數學"},{id:"health",name:"健康"},{id:"pe",name:"體育"},
+     {id:"flex1",name:"彈性一"},{id:"flex2",name:"彈性二"},{id:"flex3",name:"彈性三"}],
+  3:[{id:"chinese",name:"國語文"},{id:"english",name:"英語"},{id:"native",name:"本土語文"},
+     {id:"social",name:"社會"},{id:"science",name:"自然科學"},{id:"math",name:"數學"},
+     {id:"health",name:"健康"},{id:"pe",name:"體育"},{id:"art_music",name:"藝音"},
+     {id:"art_perf",name:"藝表"},{id:"art_visual",name:"藝視"},{id:"comprehensive",name:"綜合活動"},
+     {id:"flex1",name:"彈性一"},{id:"flex2",name:"彈性二"},{id:"flex3",name:"彈性三"},{id:"flex4",name:"彈性四"}],
+  5:[{id:"chinese",name:"國語文"},{id:"english",name:"英語"},{id:"native",name:"本土語文"},
+     {id:"social",name:"社會"},{id:"science",name:"自然科學"},{id:"math",name:"數學"},
+     {id:"health",name:"健康"},{id:"pe",name:"體育"},{id:"art_music",name:"藝音"},
+     {id:"art_perf",name:"藝表"},{id:"art_visual",name:"藝視"},{id:"comprehensive",name:"綜合活動"},
+     {id:"flex1",name:"彈性一"},{id:"flex2",name:"彈性二"},{id:"flex3",name:"彈性三"},
+     {id:"flex4",name:"彈性四"},{id:"flex5",name:"彈性五"},{id:"flex6",name:"彈性六"}]
+};
+
+let currentUser = null, userData = null;
+let currentSemester = { year: 114, semester: 2 };
+let allUsers = [];
+let editingUserId = null;
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = '../index.html'; return; }
+  currentUser = user;
+
+  // Verify admin
+  const adminsSnap = await getDocs(collection(db, 'admins'));
+  const adminEmails = adminsSnap.docs.map(d => d.data().email);
+  if (!adminEmails.includes(user.email)) {
+    window.location.href = '../index.html';
+    return;
+  }
+
+  const snap = await getDoc(doc(db, 'users', user.email));
+  if (snap.exists()) {
+    userData = snap.data();
+    document.getElementById('user-name-display').textContent = userData.realName || userData.displayName || user.email;
+    const av = document.getElementById('user-avatar');
+    if (userData.photoURL) av.innerHTML = `<img src="${userData.photoURL}">`;
+  }
+
+  await loadCurrentSemester();
+  initSemesterSelector();
+  populateSelects();
+  loadDashboardStats();
+  hideLoading();
+});
+
+async function loadCurrentSemester() {
+  const snap = await getDoc(doc(db, 'settings', 'currentSemester'));
+  if (snap.exists()) currentSemester = snap.data();
+  document.getElementById('sidebar-semester').textContent =
+    `${currentSemester.year}學年度 第${currentSemester.semester===1?'一':'二'}學期`;
+}
+
+async function loadDashboardStats() {
+  const teachersSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'teacher')));
+  const studentsSnap = await getDocs(query(collection(db, 'users'), where('role', '==', 'student')));
+  const locksSnap = await getDocs(query(collection(db, 'gradeLocks'), where('locked', '==', true)));
+  document.getElementById('stat-teachers').textContent = teachersSnap.size;
+  document.getElementById('stat-students').textContent = studentsSnap.size;
+  document.getElementById('stat-locks').textContent = locksSnap.size;
+}
+
+// ===== USERS =====
+async function loadUsers() {
+  const snap = await getDocs(collection(db, 'users'));
+  allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderUsers(allUsers);
+}
+
+function renderUsers(users) {
+  const wrap = document.getElementById('users-table-wrap');
+  if (users.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>無使用者資料</p></div>';
+    return;
+  }
+  let html = `<div class="table-wrapper"><table>
+    <thead><tr><th>Email</th><th>姓名</th><th>角色</th><th>詳細</th><th>操作</th></tr></thead>
+    <tbody>`;
+  for (const u of users) {
+    const roleLabel = { teacher:'老師', student:'學生', admin:'管理員' }[u.role] || u.role;
+    const detail = u.teacherRole === 'homeroom' ? `導師 (${u.homeroomClass})` : u.teacherRole === 'subject' ? '科任' : '';
+    html += `<tr>
+      <td class="text-sm">${u.email}</td>
+      <td class="td-name">${u.realName || u.displayName || '(未設定)'}</td>
+      <td><span class="tag ${u.role==='admin'?'tag-skip':u.role==='teacher'?'tag-special':'tag-locked'}">${roleLabel}</span></td>
+      <td class="text-sm text-muted">${detail}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn btn-ghost btn-sm" onclick="openEditUser('${u.id}')">編輯</button>
+          ${u.role === 'student' ? `<button class="btn btn-outline btn-sm" onclick="unbindStudent('${u.id}','${u.email}')">解除綁定</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+window.filterUsers = function() {
+  const search = document.getElementById('user-search').value.toLowerCase();
+  const role = document.getElementById('user-role-filter').value;
+  const filtered = allUsers.filter(u =>
+    (!role || u.role === role) &&
+    (!search || u.email.toLowerCase().includes(search) || (u.realName||'').toLowerCase().includes(search))
+  );
+  renderUsers(filtered);
+};
+
+window.openEditUser = function(userId) {
+  const u = allUsers.find(u => u.id === userId);
+  if (!u) return;
+  editingUserId = userId;
+  document.getElementById('edit-email').value = u.email;
+  document.getElementById('edit-name').value = u.realName || u.displayName || '';
+  document.getElementById('edit-role').value = u.role || 'teacher';
+
+  const teacherRoleGroup = document.getElementById('edit-teacher-role-group');
+  const homeroomGroup = document.getElementById('edit-homeroom-class-group');
+  teacherRoleGroup.style.display = u.role === 'teacher' ? 'block' : 'none';
+  homeroomGroup.style.display = u.teacherRole === 'homeroom' ? 'block' : 'none';
+
+  document.getElementById('edit-role').onchange = function() {
+    teacherRoleGroup.style.display = this.value === 'teacher' ? 'block' : 'none';
+  };
+  document.getElementById('edit-teacher-role').onchange = function() {
+    homeroomGroup.style.display = this.value === 'homeroom' ? 'block' : 'none';
+  };
+
+  if (u.teacherRole) document.getElementById('edit-teacher-role').value = u.teacherRole;
+
+  const sel = document.getElementById('edit-homeroom-class');
+  sel.innerHTML = '<option value="">請選擇</option>' + ALL_CLASSES.map(c => `<option value="${c}">${c}班</option>`).join('');
+  if (u.homeroomClass) sel.value = u.homeroomClass;
+
+  showModal('edit-user-modal');
+};
+
+window.saveEditUser = async function() {
+  const name = document.getElementById('edit-name').value.trim();
+  const role = document.getElementById('edit-role').value;
+  const teacherRole = document.getElementById('edit-teacher-role').value;
+  const homeroomClass = teacherRole === 'homeroom' ? document.getElementById('edit-homeroom-class').value : '';
+  const email = document.getElementById('edit-email').value;
+
+  await updateDoc(doc(db, 'users', editingUserId), { realName: name, role, teacherRole, homeroomClass });
+
+  if (role === 'admin') {
+    const adminId = email.replace('@','_');
+    await setDoc(doc(db, 'admins', adminId), { email, name, updatedAt: new Date() });
+  }
+
+  showToast('使用者資料已更新', 'success');
+  closeModal('edit-user-modal');
+  loadUsers();
+};
+
+window.unbindStudent = async function(userId, email) {
+  if (!confirm('確定要解除此學生的綁定嗎？學生下次登入需重新輸入班級資料。')) return;
+  // Find bound student record
+  const q = query(collection(db, 'students'), where('boundEmail', '==', email));
+  const snap = await getDocs(q);
+  const batch = writeBatch(db);
+  snap.docs.forEach(d => batch.update(d.ref, { boundEmail: null }));
+  await batch.commit();
+  showToast('已解除學生綁定', 'info');
+};
+
+// ===== ADMINS =====
+async function loadAdmins() {
+  const snap = await getDocs(collection(db, 'admins'));
+  const admins = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const wrap = document.getElementById('admins-table-wrap');
+  let html = `<div class="table-wrapper"><table>
+    <thead><tr><th>Email</th><th>姓名</th><th>操作</th></tr></thead><tbody>`;
+  for (const a of admins) {
+    html += `<tr>
+      <td>${a.email}</td>
+      <td>${a.name || '—'}</td>
+      <td>${a.email !== 'issac@sjps.kh.edu.tw'
+        ? `<button class="btn btn-danger btn-sm" onclick="removeAdmin('${a.id}','${a.email}')">移除</button>`
+        : '<span class="admin-badge">超級管理員</span>'}</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+window.addAdmin = async function() {
+  const email = document.getElementById('new-admin-email').value.trim();
+  const name = document.getElementById('new-admin-name').value.trim();
+  if (!email) { showToast('請填寫 Email', 'error'); return; }
+  const id = email.replace('@','_').replace('.','__');
+  await setDoc(doc(db, 'admins', id), { email, name, createdAt: new Date() });
+  showToast('管理員已新增', 'success');
+  closeModal('add-admin-modal');
+  loadAdmins();
+};
+
+window.removeAdmin = async function(id, email) {
+  if (!confirm(`確定要移除管理員 ${email}？`)) return;
+  await deleteDoc(doc(db, 'admins', id));
+  showToast('已移除管理員', 'info');
+  loadAdmins();
+};
+
+// ===== ASSIGNMENTS =====
+async function loadAssignments() {
+  const filterClass = document.getElementById('assign-class-filter').value;
+  const wrap = document.getElementById('assignments-content');
+  wrap.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+
+  const classes = filterClass ? [filterClass] : ALL_CLASSES.slice(0, 12); // Show first 12 by default
+
+  const assignSnap = await getDocs(query(collection(db, 'assignments'),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester)));
+  const assignments = assignSnap.docs.map(d => d.data());
+
+  let html = '<div class="assignment-grid">';
+  for (const cls of classes) {
+    const grade = parseInt(cls.charAt(0));
+    const subjects = grade <= 2 ? SUBJECTS_BY_GRADE[1] : grade <= 4 ? SUBJECTS_BY_GRADE[3] : SUBJECTS_BY_GRADE[5];
+    html += `<div class="assignment-card">
+      <div class="assignment-card-header">${cls}班</div>`;
+    for (const subj of subjects) {
+      const assign = assignments.find(a => a.classId === cls && a.subjectId === subj.id);
+      html += `<div class="assignment-subject">
+        <span>${subj.name}</span>
+        ${assign
+          ? `<span class="teacher-chip">${assign.teacherName || assign.teacherEmail.split('@')[0]}</span>`
+          : `<span class="unbound-chip" onclick="showToast('請老師自行登入後綁定，或由管理員在使用者管理中協助設定','info')">未指派</span>`}
+      </div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  if (!filterClass) html += `<div class="alert alert-info mt-3">顯示前12班，請選擇特定班級查看完整資訊</div>`;
+  wrap.innerHTML = html;
+}
+
+// ===== STUDENTS ADMIN =====
+async function loadAdminStudents() {
+  const classId = document.getElementById('admin-student-class').value;
+  if (!classId) return;
+
+  const q = query(collection(db, 'students'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester),
+    orderBy('seatNo'));
+  const snap = await getDocs(q);
+  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  const wrap = document.getElementById('admin-students-wrap');
+  if (students.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>尚無學生資料</p></div>';
+    return;
+  }
+
+  let html = `<div class="table-wrapper"><table>
+    <thead><tr><th>座號</th><th>姓名</th><th>特殊標記</th><th>綁定帳號</th><th>操作</th></tr></thead>
+    <tbody>`;
+  const tagMap = { skip:'跳級', self:'自學', special:'特教' };
+  for (const s of students) {
+    html += `<tr>
+      <td>${s.seatNo.toString().padStart(2,'0')}</td>
+      <td class="td-name">${s.name}</td>
+      <td>${s.specialMark ? `<span class="tag tag-${s.specialMark}">${tagMap[s.specialMark]}</span>` : '—'}</td>
+      <td class="text-sm">${s.boundEmail || '<span class="text-muted">未綁定</span>'}</td>
+      <td>
+        ${s.boundEmail ? `<button class="btn btn-outline btn-sm" onclick="adminUnbind('${s.id}')">解除綁定</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="adminDeleteStudent('${s.id}','${s.name}')">刪除</button>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+window.adminUnbind = async function(id) {
+  if (!confirm('確定解除此學生的帳號綁定？')) return;
+  await updateDoc(doc(db, 'students', id), { boundEmail: null });
+  showToast('已解除綁定', 'info');
+  loadAdminStudents();
+};
+
+window.adminDeleteStudent = async function(id, name) {
+  if (!confirm(`確定刪除學生「${name}」？此操作不可復原。`)) return;
+  await deleteDoc(doc(db, 'students', id));
+  showToast(`已刪除 ${name}`, 'info');
+  loadAdminStudents();
+};
+
+// ===== SEMESTER CONFIG =====
+async function loadSemesterConfig() {
+  const snap = await getDoc(doc(db, 'settings', 'currentSemester'));
+  const wrap = document.getElementById('semester-config-display');
+  if (snap.exists()) {
+    const d = snap.data();
+    wrap.innerHTML = `<div class="alert alert-success">
+      <strong>當前學期：</strong>${d.year}學年度 第${d.semester===1?'一':'二'}學期<br>
+      學期期間：${d.startDate || '未設定'} ～ ${d.endDate || '未設定'}
+    </div>`;
+    document.getElementById('sem-year').value = d.year;
+    document.getElementById('sem-num').value = d.semester;
+    document.getElementById('sem-start').value = d.startDate || '';
+    document.getElementById('sem-end').value = d.endDate || '';
+  } else {
+    wrap.innerHTML = '<div class="alert alert-warning">尚未設定學期</div>';
+  }
+}
+
+window.saveSemesterConfig = async function() {
+  const year = parseInt(document.getElementById('sem-year').value);
+  const semester = parseInt(document.getElementById('sem-num').value);
+  const startDate = document.getElementById('sem-start').value;
+  const endDate = document.getElementById('sem-end').value;
+  if (!year || !semester) { showToast('請填寫學年度與學期', 'error'); return; }
+  await setDoc(doc(db, 'settings', 'currentSemester'), { year, semester, startDate, endDate, updatedAt: new Date() });
+  currentSemester = { year, semester };
+  document.getElementById('sidebar-semester').textContent = `${year}學年度 第${semester===1?'一':'二'}學期`;
+  showToast('學期設定已儲存', 'success');
+  closeModal('semester-config-modal');
+  loadSemesterConfig();
+};
+
+// ===== ANNOUNCEMENTS =====
+async function loadAnnouncements() {
+  const snap = await getDocs(query(collection(db, 'announcements'), orderBy('createdAt', 'desc')));
+  const anns = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const wrap = document.getElementById('announcements-list');
+  if (anns.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">📢</div><p>尚無公告</p></div>';
+    return;
+  }
+  let html = '';
+  for (const a of anns) {
+    html += `<div class="card mb-3">
+      <div class="card-header">
+        <div class="card-title">${a.title}</div>
+        <span class="tag ${a.active ? 'tag-locked' : 'tag-unlocked'}" style="margin-left:8px">${a.active ? '啟用' : '停用'}</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="openAnnModal('${a.id}')">編輯</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAnnouncement('${a.id}')">刪除</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="text-sm mb-1">${a.content}</div>
+        <div class="text-xs text-muted">顯示期間：${a.startDate || '—'} ～ ${a.endDate || '—'}</div>
+      </div>
+    </div>`;
+  }
+  wrap.innerHTML = html;
+}
+
+window.openAnnModal = function(id) {
+  document.getElementById('ann-title-input').value = '';
+  document.getElementById('ann-content-input').value = '';
+  document.getElementById('ann-start').value = '';
+  document.getElementById('ann-end').value = '';
+  document.getElementById('ann-active').checked = true;
+  document.getElementById('ann-edit-id').value = id || '';
+
+  if (id) {
+    // Load existing
+    getDoc(doc(db, 'announcements', id)).then(snap => {
+      if (snap.exists()) {
+        const a = snap.data();
+        document.getElementById('ann-title-input').value = a.title;
+        document.getElementById('ann-content-input').value = a.content;
+        document.getElementById('ann-start').value = a.startDate || '';
+        document.getElementById('ann-end').value = a.endDate || '';
+        document.getElementById('ann-active').checked = a.active !== false;
+      }
+    });
+  }
+  showModal('ann-edit-modal');
+};
+
+window.saveAnnouncement = async function() {
+  const title = document.getElementById('ann-title-input').value.trim();
+  const content = document.getElementById('ann-content-input').value.trim();
+  const startDate = document.getElementById('ann-start').value;
+  const endDate = document.getElementById('ann-end').value;
+  const active = document.getElementById('ann-active').checked;
+  const editId = document.getElementById('ann-edit-id').value;
+  if (!title || !content) { showToast('請填寫標題與內容', 'error'); return; }
+
+  const data = { title, content, startDate, endDate, active, updatedAt: new Date() };
+  if (editId) {
+    await updateDoc(doc(db, 'announcements', editId), data);
+  } else {
+    await addDoc(collection(db, 'announcements'), { ...data, createdAt: new Date() });
+  }
+  showToast('公告已儲存', 'success');
+  closeModal('ann-edit-modal');
+  loadAnnouncements();
+};
+
+window.deleteAnnouncement = async function(id) {
+  if (!confirm('確定刪除此公告？')) return;
+  await deleteDoc(doc(db, 'announcements', id));
+  showToast('已刪除公告', 'info');
+  loadAnnouncements();
+};
+
+// ===== SKIP LIST =====
+async function loadSkipList() {
+  const q = query(collection(db, 'students'),
+    where('specialMark', '==', 'skip'),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const snap = await getDocs(q);
+  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  const wrap = document.getElementById('skip-list-content');
+  if (students.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">📌</div><p>本學期無跳級生</p></div>';
+    return;
+  }
+
+  let html = `<div class="table-wrapper"><table>
+    <thead><tr><th>原班</th><th>座號</th><th>姓名</th><th>跳級科目</th><th>跳至班級</th></tr></thead>
+    <tbody>`;
+  for (const s of students) {
+    html += `<tr>
+      <td>${s.classId}班</td>
+      <td>${s.seatNo}</td>
+      <td class="td-name">${s.name}</td>
+      <td>${(s.skipSubjects || []).join('、')}</td>
+      <td>${s.skipClass || '—'}班</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+window.exportSkipList = function() {
+  showToast('跳級生 Excel 匯出功能開發中', 'info');
+};
+
+// ===== REPORTS =====
+window.exportReportExcel = function() { showToast('Excel 報表匯出功能開發中', 'info'); };
+window.exportReportPDF = function() { window.print(); };
+
+// ===== SEMESTER SELECTOR =====
+function initSemesterSelector() {
+  const sel = document.getElementById('semester-select-top');
+  for (let y = 114; y >= 111; y--) {
+    for (let s = 2; s >= 1; s--) {
+      const opt = document.createElement('option');
+      opt.value = `${y}-${s}`;
+      opt.textContent = `${y}年 第${s===1?'一':'二'}學期`;
+      if (y === currentSemester.year && s === currentSemester.semester) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+window.changeSemester = function() {
+  const [y, s] = document.getElementById('semester-select-top').value.split('-').map(Number);
+  currentSemester = { year: y, semester: s };
+  document.getElementById('sidebar-semester').textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
+};
+
+// ===== POPULATE SELECTS =====
+function populateSelects() {
+  [document.getElementById('assign-class-filter'),
+   document.getElementById('admin-student-class'),
+   document.getElementById('report-class')]
+  .forEach(sel => {
+    if (!sel) return;
+    ALL_CLASSES.forEach(c => sel.innerHTML += `<option value="${c}">${c}班</option>`);
+  });
+}
+
+// ===== NAV =====
+window.showPage = function(page) {
+  document.querySelectorAll('[id^="page-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + page).style.display = 'block';
+  const navEl = document.getElementById('nav-' + page);
+  if (navEl) navEl.classList.add('active');
+  const titles = { dashboard:'後台首頁', users:'使用者管理', admins:'管理員清單',
+    assignments:'老師任課管理', students:'學生資料管理', semester:'學期設定',
+    announcements:'公告管理', reports:'成績報表匯出', skiplist:'跳級生名單' };
+  document.getElementById('topbar-title').textContent = titles[page] || '';
+
+  const loaders = { users: loadUsers, admins: loadAdmins, assignments: loadAssignments,
+    semester: loadSemesterConfig, announcements: loadAnnouncements, skiplist: loadSkipList };
+  if (loaders[page]) loaders[page]();
+};
+
+function hideLoading() {
+  const el = document.getElementById('loading-screen');
+  el.style.opacity = '0';
+  setTimeout(() => el.style.display = 'none', 400);
+}
+
+window.showModal = id => document.getElementById(id).style.display = 'flex';
+window.closeModal = id => document.getElementById(id).style.display = 'none';
+window.doLogout = async () => { await signOut(auth); window.location.href = '../index.html'; };
+window.loadAdminStudents = loadAdminStudents;
+window.loadAssignments = loadAssignments;
+
+window.showToast = function(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+};
+</script>
+</body>
+</html>
