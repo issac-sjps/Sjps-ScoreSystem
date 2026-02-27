@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>老師介面 - 新莊國小成績系統</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .class-selector-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 10px;
+    }
+    .class-chip {
+      border: 2px solid var(--gray-200);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--gray-600);
+      background: white;
+    }
+    .class-chip:hover { border-color: var(--primary-light); color: var(--primary); background: var(--primary-pale); }
+    .class-chip.active { border-color: var(--primary); color: var(--primary); background: var(--primary-pale); }
+    .class-chip.my-class { border-color: var(--success); color: var(--success); }
+    .class-chip.my-class.active { background: var(--success-light); }
+
+    .subject-list { display: flex; flex-direction: column; gap: 8px; }
+    .subject-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      background: white;
+      transition: all 0.15s;
+    }
+    .subject-row:hover { border-color: var(--primary-light); }
+    .subject-row.locked { border-left: 3px solid var(--success); }
+    .subject-row.unlocked { border-left: 3px solid var(--danger); }
+    .subject-info { flex: 1; }
+    .subject-name { font-weight: 600; font-size: 0.9rem; }
+    .subject-meta { font-size: 0.75rem; color: var(--gray-400); margin-top: 2px; }
+
+    .grade-section { display: none; }
+    .grade-section.active { display: block; }
+
+    .weight-inputs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .weight-item { text-align: center; }
+    .weight-label { font-size: 0.75rem; color: var(--gray-500); margin-bottom: 4px; }
+    .weight-input {
+      width: 100%; padding: 6px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      text-align: center;
+      font-size: 0.9rem;
+      font-family: var(--font-sans);
+    }
+    .weight-total { text-align: right; font-size: 0.82rem; margin-top: 8px; }
+    .weight-total.ok { color: var(--success); font-weight: 600; }
+    .weight-total.err { color: var(--danger); font-weight: 600; }
+
+    .grade-items-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .grade-item-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .grade-item-row input[type="text"] { flex: 2; }
+    .grade-item-row input[type="number"] { flex: 1; }
+
+    /* 跳級區塊 */
+    .skip-section {
+      margin-top: 24px;
+      padding: 16px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius-lg);
+    }
+    .skip-section-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #1d4ed8;
+      margin-bottom: 12px;
+    }
+
+    /* 成績表格樣式 */
+    .grade-table-wrap { overflow-x: auto; }
+    .grade-table { min-width: 600px; }
+    .grade-table th, .grade-table td { padding: 7px 8px; }
+    .final-score { font-weight: 700; color: var(--primary); }
+
+    /* 快速匯入 */
+    .import-area {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+
+    /* Panel layout */
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .panel-grid { grid-template-columns: 1fr; }
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .role-homeroom { background: #fef3c7; color: #92400e; }
+    .role-subject { background: #e0f2fe; color: #0369a1; }
+  </style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- Loading -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="logo-text">新莊國小</div>
+  <div class="sub-text">成績管理系統</div>
+</div>
+
+<!-- Announcement Modal -->
+<div class="modal-overlay" id="announcement-modal" style="display:none">
+  <div class="modal announcement-modal">
+    <div class="modal-body announcement-body">
+      <div class="announcement-icon">📢</div>
+      <div class="announcement-title" id="ann-title"></div>
+      <div class="announcement-content" id="ann-content"></div>
+    </div>
+    <div class="modal-footer" style="justify-content:center">
+      <button class="btn btn-primary" onclick="closeAnnouncement()">我知道了</button>
+    </div>
+  </div>
+</div>
+
+<!-- First Login Modal (set real name) -->
+<div class="modal-overlay" id="first-login-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">👋 歡迎！請設定您的姓名</div>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info mb-4">
+        首次登入需要填寫真實姓名，方便管理員識別帳號。姓名設定後如需修改，請聯絡管理員。
+      </div>
+      <div class="form-group">
+        <label class="form-label">真實姓名 <span style="color:var(--danger)">*</span></label>
+        <input type="text" class="form-control" id="real-name-input" placeholder="例如：王小明">
+      </div>
+      <div class="form-group">
+        <label class="form-label">擔任角色 <span style="color:var(--danger)">*</span></label>
+        <div style="display:flex;gap:12px;margin-top:8px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="radio" name="teacher-role" value="homeroom"> 導師（班導師）
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="radio" name="teacher-role" value="subject"> 科任老師
+          </label>
+        </div>
+      </div>
+      <div class="form-group" id="homeroom-class-group" style="display:none">
+        <label class="form-label">擔任哪個班的導師？</label>
+        <select class="form-control" id="homeroom-class-select">
+          <option value="">請選擇班級</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary btn-lg w-full" onclick="saveFirstLogin()">確認設定</button>
+    </div>
+  </div>
+</div>
+
+<!-- Roster Import Modal -->
+<div class="modal-overlay" id="roster-modal" style="display:none">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title">📋 匯入學生名單</div>
+      <button class="modal-close" onclick="closeModal('roster-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info mb-3">
+        每行格式：<strong>學號 座號 姓名</strong>（空格或 Tab 分隔）<br>
+        例如：<code>114001 01 黃O恩</code>
+      </div>
+      <div class="form-group">
+        <label class="form-label">貼上名單</label>
+        <textarea class="import-area" id="roster-import-text" placeholder="114001 01 黃O恩&#10;114002 02 梁O侑&#10;114003 03 葉O寬"></textarea>
+      </div>
+      <div id="import-preview" style="display:none">
+        <div class="form-label mb-2">預覽（<span id="import-count">0</span> 位學生）</div>
+        <div class="table-wrapper" style="max-height:200px;overflow-y:auto">
+          <table>
+            <thead><tr><th>座號</th><th>學號</th><th>姓名</th></tr></thead>
+            <tbody id="import-preview-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('roster-modal')">取消</button>
+      <button class="btn btn-outline" onclick="parseImport()">預覽解析</button>
+      <button class="btn btn-primary" onclick="confirmImport()" id="import-confirm-btn" disabled>確認匯入</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Student Manual Modal -->
+<div class="modal-overlay" id="add-student-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">➕ 新增學生</div>
+      <button class="modal-close" onclick="closeModal('add-student-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">學號</label>
+        <input type="text" class="form-control" id="new-student-id" placeholder="114001">
+      </div>
+      <div class="form-group">
+        <label class="form-label">座號</label>
+        <input type="number" class="form-control" id="new-student-no" placeholder="1" min="1" max="50">
+      </div>
+      <div class="form-group">
+        <label class="form-label">姓名</label>
+        <input type="text" class="form-control" id="new-student-name" placeholder="王小明">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('add-student-modal')">取消</button>
+      <button class="btn btn-primary" onclick="addStudent()">新增</button>
+    </div>
+  </div>
+</div>
+
+<!-- Special Student Modal -->
+<div class="modal-overlay" id="special-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⭐ 特殊標記設定</div>
+      <button class="modal-close" onclick="closeModal('special-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">學生</label>
+        <div id="special-student-name" style="font-weight:600;color:var(--primary)"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">標記類型</label>
+        <select class="form-control" id="special-type-select">
+          <option value="">無特殊標記</option>
+          <option value="skip">跳級生</option>
+          <option value="self">自學生</option>
+          <option value="special">特教生</option>
+        </select>
+      </div>
+      <div id="skip-detail" style="display:none">
+        <div class="form-group">
+          <label class="form-label">跳級科目</label>
+          <select class="form-control" id="skip-subject-select" multiple style="height:120px">
+          </select>
+          <div class="form-hint">可多選（按住 Ctrl 複選）</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">跳到哪個班？</label>
+          <select class="form-control" id="skip-class-select">
+            <option value="">請選擇班級</option>
+          </select>
+        </div>
+      </div>
+      <input type="hidden" id="special-student-id">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('special-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveSpecialMark()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Weight Setting Modal -->
+<div class="modal-overlay" id="weight-modal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⚖️ 成績權重設定</div>
+      <button class="modal-close" onclick="closeModal('weight-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-warning mb-3">四個區塊的百分比總和必須等於 100%，否則無法儲存。</div>
+      <div class="weight-inputs">
+        <div class="weight-item">
+          <div class="weight-label">第一次平時成績</div>
+          <input type="number" class="weight-input" id="w1" min="0" max="100" value="25" oninput="updateWeightTotal()">
+          <div class="weight-label">%</div>
+        </div>
+        <div class="weight-item">
+          <div class="weight-label">第二次平時成績</div>
+          <input type="number" class="weight-input" id="w2" min="0" max="100" value="25" oninput="updateWeightTotal()">
+          <div class="weight-label">%</div>
+        </div>
+        <div class="weight-item">
+          <div class="weight-label">第一次定期評量</div>
+          <input type="number" class="weight-input" id="w3" min="0" max="100" value="25" oninput="updateWeightTotal()">
+          <div class="weight-label">%</div>
+        </div>
+        <div class="weight-item">
+          <div class="weight-label">第二次定期評量</div>
+          <input type="number" class="weight-input" id="w4" min="0" max="100" value="25" oninput="updateWeightTotal()">
+          <div class="weight-label">%</div>
+        </div>
+      </div>
+      <div class="weight-total" id="weight-total-display">總計：100%</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('weight-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveWeights()">儲存權重</button>
+    </div>
+  </div>
+</div>
+
+<!-- Grade Items Modal -->
+<div class="modal-overlay" id="items-modal" style="display:none">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div class="modal-title">📝 平時成績項目設定</div>
+      <button class="modal-close" onclick="closeModal('items-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info mb-3">請為「<span id="items-section-label"></span>」設定評分細項，各項目權重總和須等於 100%</div>
+      <div class="grade-items-list" id="grade-items-list"></div>
+      <button class="btn btn-ghost btn-sm mt-3" onclick="addGradeItem()">+ 新增項目</button>
+      <div class="weight-total mt-2" id="items-total-display">總計：0%</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('items-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveGradeItems()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        新莊國小<br>
+        <span>成績管理系統</span>
+      </div>
+      <div class="semester-badge" id="sidebar-semester">114學年度 第二學期</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">主選單</div>
+      <div class="nav-item active" onclick="showPage('dashboard')" id="nav-dashboard">
+        <span class="icon">🏠</span> 首頁總覽
+      </div>
+      <div class="nav-item" onclick="showPage('roster')" id="nav-roster">
+        <span class="icon">📋</span> 學生名單管理
+      </div>
+      <div class="nav-item" onclick="showPage('grades')" id="nav-grades">
+        <span class="icon">📊</span> 成績輸入
+      </div>
+      <div id="nav-overview-section" style="display:none">
+        <div class="nav-section">導師功能</div>
+        <div class="nav-item" onclick="showPage('overview')" id="nav-overview">
+          <span class="icon">📈</span> 班級成績總覽
+        </div>
+        <div class="nav-item" onclick="showPage('ranking')" id="nav-ranking">
+          <span class="icon">🏆</span> 成績排名
+        </div>
+      </div>
+      <div class="nav-section">匯出</div>
+      <div class="nav-item" onclick="exportBlankRoster()">
+        <span class="icon">🖨️</span> 空白點名表
+      </div>
+      <div class="nav-item" onclick="exportBlankGrade()">
+        <span class="icon">📄</span> 空白成績登錄表
+      </div>
+      <div class="nav-item" id="nav-export-full" style="display:none" onclick="exportFullGrades()">
+        <span class="icon">📥</span> 匯出完整成績
+      </div>
+      <div class="nav-section">學年切換</div>
+      <div class="nav-item" onclick="showPage('semester')" id="nav-semester">
+        <span class="icon">📅</span> 切換學年學期
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">？</div>
+        <div>
+          <div class="user-name" id="user-name-display">載入中...</div>
+          <div class="user-role" id="user-role-display"></div>
+        </div>
+        <button class="logout-btn" onclick="doLogout()" title="登出">⬡</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="topbar">
+      <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <div class="topbar-title" id="topbar-title">首頁總覽</div>
+      <div class="topbar-actions">
+        <div class="semester-selector">
+          <span>學期：</span>
+          <select id="semester-select-top" onchange="changeSemester()"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+
+      <!-- Dashboard -->
+      <div id="page-dashboard">
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">我的班級</div>
+            <div class="stat-value" id="stat-classes">0</div>
+            <div class="stat-desc">任課班級數</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">科目數</div>
+            <div class="stat-value" id="stat-subjects">0</div>
+            <div class="stat-desc">任課科目數</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">待輸入</div>
+            <div class="stat-value" id="stat-pending">0</div>
+            <div class="stat-desc">尚未完成科目</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">已鎖定</div>
+            <div class="stat-value" id="stat-locked">0</div>
+            <div class="stat-desc">期末鎖定科目</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📋 我的任課班級與科目</div>
+            <button class="btn btn-outline btn-sm" onclick="showPage('bind')">設定任課</button>
+          </div>
+          <div class="card-body" id="my-assignments-list">
+            <div class="empty-state"><div class="icon">📚</div><p>尚未設定任課班級，請點選「設定任課」</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bind classes page -->
+      <div id="page-bind" style="display:none">
+        <div class="card mb-4">
+          <div class="card-header"><div class="card-title">🔗 設定我的任課班級與科目</div></div>
+          <div class="card-body">
+            <p class="text-sm text-muted mb-3">從下方選擇您任教的班級，再選擇科目與節數進行綁定。</p>
+            <div class="form-group">
+              <label class="form-label">選擇班級</label>
+              <div class="class-selector-grid" id="bind-class-grid"></div>
+            </div>
+            <div id="bind-subject-section" style="display:none">
+              <div class="form-label mb-2">選擇班級 <strong id="bind-selected-class"></strong> 您任教的科目</div>
+              <div id="bind-subject-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Roster Management -->
+      <div id="page-roster" style="display:none">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <label class="form-label" style="margin:0">選擇班級</label>
+            <select class="form-control" id="roster-class-select" style="width:auto;display:inline-block;margin-left:10px" onchange="loadRoster()">
+              <option value="">-- 選擇班級 --</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" onclick="showModal('roster-modal')">📋 快速匯入</button>
+            <button class="btn btn-primary btn-sm" onclick="showModal('add-student-modal')">+ 新增學生</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body" id="roster-table-wrap">
+            <div class="empty-state"><div class="icon">👥</div><p>請先選擇班級</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grades Input -->
+      <div id="page-grades" style="display:none">
+        <div class="panel-grid">
+          <div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">選擇班級與科目</div></div>
+              <div class="card-body">
+                <div class="form-group">
+                  <label class="form-label">班級</label>
+                  <select class="form-control" id="grade-class-select" onchange="loadGradeSubjects()">
+                    <option value="">-- 選擇 --</option>
+                  </select>
+                </div>
+                <div id="grade-subject-list" class="subject-list"></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div id="grade-input-area">
+              <div class="empty-state"><div class="icon">📝</div><p>請選擇左側班級與科目</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Class Overview (homeroom only) -->
+      <div id="page-overview" style="display:none">
+        <div class="card mb-4">
+          <div class="card-header">
+            <div class="card-title">📈 班級成績總覽</div>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn btn-outline btn-sm" onclick="exportOverviewPDF()">匯出 PDF</button>
+              <button class="btn btn-primary btn-sm" onclick="exportOverviewExcel()">匯出 Excel</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="overview-table-wrap">
+              <div class="empty-state"><div class="icon">📊</div><p>載入中...</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ranking -->
+      <div id="page-ranking" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🏆 班級成績排名</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+              <select class="form-control" id="rank-sort-by" style="width:auto" onchange="renderRanking()">
+                <option value="total">依總平均排序</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="renderRanking()">排序</button>
+            </div>
+          </div>
+          <div class="card-body" id="ranking-table-wrap">
+            <div class="empty-state"><div class="icon">🏅</div><p>載入中...</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Semester switcher -->
+      <div id="page-semester" style="display:none">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📅 學年度切換</div></div>
+          <div class="card-body">
+            <p class="text-sm text-muted mb-4">歷史學期資料為唯讀，無法修改成績。</p>
+            <div id="semester-list-display"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
+  collection, getDocs, query, where, orderBy, writeBatch, addDoc
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA8m4nHUZ9jjZadMaUxZtXau7G44ChZeJY",
+  authDomain: "sjps-scoresystem.firebaseapp.com",
+  projectId: "sjps-scoresystem",
+  storageBucket: "sjps-scoresystem.firebasestorage.app",
+  messagingSenderId: "786097431395",
+  appId: "1:786097431395:web:1469342ed3c53b6c1ee956"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+// ===== CONSTANTS =====
+const ALL_CLASSES = ["101","102","103","104","105","106","201","202","203","204","205","206",
+  "301","302","303","304","305","306","307","401","402","403","404","405","406","407","408","409",
+  "501","502","503","504","505","506","507","508","601","602","603","604","605","606","607","608"];
+
+const SUBJECTS = {
+  1: [{id:"chinese",name:"國語文",domain:"language"},{id:"native",name:"本土語文",domain:"language"},
+      {id:"life",name:"生活課程",domain:"life",hours:6},{id:"math",name:"數學",domain:"math"},
+      {id:"health",name:"健康",domain:"health_pe"},{id:"pe",name:"體育",domain:"health_pe"},
+      {id:"flex1",name:"彈性一（世界之窗）",domain:"flex"},{id:"flex2",name:"彈性二（新莊萬花筒）",domain:"flex"},
+      {id:"flex3",name:"彈性三（國際+閱讀）",domain:"flex"}],
+  3: [{id:"chinese",name:"國語文",domain:"language"},{id:"english",name:"英語",domain:"language"},
+      {id:"native",name:"本土語文",domain:"language"},{id:"social",name:"社會",domain:"social"},
+      {id:"science",name:"自然科學",domain:"science"},{id:"math",name:"數學",domain:"math"},
+      {id:"health",name:"健康",domain:"health_pe"},{id:"pe",name:"體育",domain:"health_pe"},
+      {id:"art_music",name:"藝音",domain:"art"},{id:"art_perf",name:"藝表",domain:"art"},
+      {id:"art_visual",name:"藝視",domain:"art"},{id:"comprehensive",name:"綜合活動",domain:"comprehensive"},
+      {id:"flex1",name:"彈性一（世界之窗）",domain:"flex"},{id:"flex2",name:"彈性二（新莊E學院）",domain:"flex"},
+      {id:"flex3",name:"彈性三（新莊萬花筒）",domain:"flex"},{id:"flex4",name:"彈性四（國際+閱讀）",domain:"flex"}],
+  5: [{id:"chinese",name:"國語文",domain:"language"},{id:"english",name:"英語",domain:"language"},
+      {id:"native",name:"本土語文",domain:"language"},{id:"social",name:"社會",domain:"social"},
+      {id:"science",name:"自然科學",domain:"science"},{id:"math",name:"數學",domain:"math"},
+      {id:"health",name:"健康",domain:"health_pe"},{id:"pe",name:"體育",domain:"health_pe"},
+      {id:"art_music",name:"藝音",domain:"art"},{id:"art_perf",name:"藝表",domain:"art"},
+      {id:"art_visual",name:"藝視",domain:"art"},{id:"comprehensive",name:"綜合活動",domain:"comprehensive"},
+      {id:"flex1",name:"彈性一（走過時代邁向國際）",domain:"flex"},{id:"flex2",name:"彈性二（閱讀培力）",domain:"flex"},
+      {id:"flex3",name:"彈性三（世界之窗）",domain:"flex"},{id:"flex4",name:"彈性四（新莊E學院）",domain:"flex"},
+      {id:"flex5",name:"彈性五（新莊萬花筒）",domain:"flex"},{id:"flex6",name:"彈性六（進擊的學吧）",domain:"flex"}]
+};
+
+function getSubjectsForGrade(g) {
+  if (g <= 2) return SUBJECTS[1];
+  if (g <= 4) return SUBJECTS[3];
+  return SUBJECTS[5];
+}
+function getGrade(cls) { return parseInt(cls.charAt(0)); }
+
+// ===== STATE =====
+let currentUser = null;
+let userData = null;
+let currentSemester = { year: 114, semester: 2 };
+let myAssignments = []; // [{classId, subjectId, subjectName, hours, isHomeroom}]
+let importedStudents = [];
+let currentGradeClass = null;
+let currentGradeSubject = null;
+let currentGradeItems = { section: null, classId: null, subjectId: null };
+
+// ===== INIT =====
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = '../index.html'; return; }
+  currentUser = user;
+  await loadUserData();
+  await loadCurrentSemester();
+  await loadMyAssignments();
+  initSemesterSelector();
+  populateClassSelects();
+  hideLoading();
+  checkAnnouncement();
+});
+
+async function loadUserData() {
+  const snap = await getDoc(doc(db, 'users', currentUser.email));
+  if (snap.exists()) {
+    userData = snap.data();
+    document.getElementById('user-name-display').textContent = userData.realName || userData.displayName || currentUser.email;
+    const roleLabel = userData.teacherRole === 'homeroom' ? `導師 (${userData.homeroomClass || ''})` : '科任老師';
+    document.getElementById('user-role-display').textContent = roleLabel;
+    const av = document.getElementById('user-avatar');
+    if (userData.photoURL) av.innerHTML = `<img src="${userData.photoURL}">`;
+    else av.textContent = (userData.realName || userData.displayName || '?').charAt(0);
+
+    if (userData.teacherRole === 'homeroom') {
+      document.getElementById('nav-overview-section').style.display = 'block';
+      document.getElementById('nav-export-full').style.display = 'flex';
+    }
+
+    if (!userData.realName) {
+      populateFirstLoginModal();
+      showModal('first-login-modal');
+    }
+  }
+}
+
+async function loadCurrentSemester() {
+  const snap = await getDoc(doc(db, 'settings', 'currentSemester'));
+  if (snap.exists()) currentSemester = snap.data();
+  else {
+    const now = new Date();
+    const m = now.getMonth() + 1;
+    const roc = now.getFullYear() - 1911;
+    currentSemester = (m >= 2 && m <= 6) ? { year: roc - 1, semester: 2 } : { year: m >= 9 ? roc : roc - 1, semester: 1 };
+  }
+  document.getElementById('sidebar-semester').textContent = `${currentSemester.year}學年度 第${currentSemester.semester === 1 ? '一' : '二'}學期`;
+}
+
+async function loadMyAssignments() {
+  const q = query(collection(db, 'assignments'),
+    where('teacherEmail', '==', currentUser.email),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const snap = await getDocs(q);
+  myAssignments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Also include homeroom class
+  if (userData?.teacherRole === 'homeroom' && userData.homeroomClass) {
+    const exists = myAssignments.some(a => a.classId === userData.homeroomClass && a.isHomeroom);
+    if (!exists) myAssignments.push({ classId: userData.homeroomClass, isHomeroom: true });
+  }
+
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const classes = [...new Set(myAssignments.map(a => a.classId))];
+  document.getElementById('stat-classes').textContent = classes.length;
+  document.getElementById('stat-subjects').textContent = myAssignments.filter(a => a.subjectId).length;
+
+  const listEl = document.getElementById('my-assignments-list');
+  if (myAssignments.length === 0) {
+    listEl.innerHTML = `<div class="empty-state"><div class="icon">📚</div><p>尚未設定任課班級，請點選「設定任課」</p></div>`;
+    return;
+  }
+
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+  const classGroups = {};
+  myAssignments.forEach(a => {
+    if (!classGroups[a.classId]) classGroups[a.classId] = [];
+    if (a.subjectId) classGroups[a.classId].push(a.subjectName + (a.hours > 1 ? `(${a.hours}節)` : ''));
+  });
+  for (const [cls, subs] of Object.entries(classGroups)) {
+    html += `<div class="card" style="padding:12px;min-width:160px">
+      <div style="font-weight:700;color:var(--primary);margin-bottom:6px">${cls}班</div>
+      <div style="font-size:0.8rem;color:var(--gray-600)">${subs.length > 0 ? subs.join('、') : '（僅導師）'}</div>
+    </div>`;
+  }
+  html += '</div>';
+  listEl.innerHTML = html;
+
+  // Update grade class select
+  const sel = document.getElementById('grade-class-select');
+  const rosterSel = document.getElementById('roster-class-select');
+  sel.innerHTML = '<option value="">-- 選擇 --</option>';
+  rosterSel.innerHTML = '<option value="">-- 選擇班級 --</option>';
+  classes.forEach(c => {
+    sel.innerHTML += `<option value="${c}">${c}班</option>`;
+    rosterSel.innerHTML += `<option value="${c}">${c}班</option>`;
+  });
+}
+
+// ===== FIRST LOGIN =====
+function populateFirstLoginModal() {
+  const sel = document.getElementById('homeroom-class-select');
+  sel.innerHTML = '<option value="">請選擇班級</option>';
+  ALL_CLASSES.forEach(c => sel.innerHTML += `<option value="${c}">${c}班</option>`);
+  document.querySelector('input[name="teacher-role"][value="homeroom"]')?.addEventListener('change', () => {
+    document.getElementById('homeroom-class-group').style.display = 'block';
+  });
+  document.querySelector('input[name="teacher-role"][value="subject"]')?.addEventListener('change', () => {
+    document.getElementById('homeroom-class-group').style.display = 'none';
+  });
+}
+
+window.saveFirstLogin = async function() {
+  const name = document.getElementById('real-name-input').value.trim();
+  const roleEl = document.querySelector('input[name="teacher-role"]:checked');
+  if (!name) { showToast('請填寫姓名', 'error'); return; }
+  if (!roleEl) { showToast('請選擇角色', 'error'); return; }
+  const role = roleEl.value;
+  const homeroomClass = role === 'homeroom' ? document.getElementById('homeroom-class-select').value : '';
+  if (role === 'homeroom' && !homeroomClass) { showToast('請選擇導師班級', 'error'); return; }
+
+  await updateDoc(doc(db, 'users', currentUser.email), { realName: name, teacherRole: role, homeroomClass });
+  userData.realName = name; userData.teacherRole = role; userData.homeroomClass = homeroomClass;
+  document.getElementById('user-name-display').textContent = name;
+  document.getElementById('user-role-display').textContent = role === 'homeroom' ? `導師 (${homeroomClass})` : '科任老師';
+  if (role === 'homeroom') {
+    document.getElementById('nav-overview-section').style.display = 'block';
+    document.getElementById('nav-export-full').style.display = 'flex';
+  }
+  closeModal('first-login-modal');
+  showToast('設定完成！', 'success');
+};
+
+// ===== ANNOUNCEMENT =====
+async function checkAnnouncement() {
+  const snap = await getDocs(query(collection(db, 'announcements'), where('active', '==', true)));
+  if (snap.empty) return;
+  const now = new Date();
+  for (const d of snap.docs) {
+    const ann = d.data();
+    const start = ann.startDate?.toDate?.() || new Date(ann.startDate);
+    const end = ann.endDate?.toDate?.() || new Date(ann.endDate);
+    if (now >= start && now <= end) {
+      document.getElementById('ann-title').textContent = ann.title;
+      document.getElementById('ann-content').textContent = ann.content;
+      showModal('announcement-modal');
+      break;
+    }
+  }
+}
+window.closeAnnouncement = () => closeModal('announcement-modal');
+
+// ===== BIND CLASSES =====
+window.showBindPage = function() {
+  showPage('bind');
+  const grid = document.getElementById('bind-class-grid');
+  grid.innerHTML = '';
+  ALL_CLASSES.forEach(c => {
+    const isMine = myAssignments.some(a => a.classId === c);
+    const div = document.createElement('div');
+    div.className = `class-chip ${isMine ? 'my-class active' : ''}`;
+    div.textContent = c + '班';
+    div.onclick = () => showBindSubjects(c, div);
+    grid.appendChild(div);
+  });
+};
+
+window.showBindSubjects = async function(classId, el) {
+  document.querySelectorAll('.class-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('bind-selected-class').textContent = classId + '班';
+  document.getElementById('bind-subject-section').style.display = 'block';
+
+  const grade = getGrade(classId);
+  const subjects = getSubjectsForGrade(grade);
+  const existing = myAssignments.filter(a => a.classId === classId);
+
+  let html = '';
+  for (const subj of subjects) {
+    // Check if someone else has it
+    const q = query(collection(db, 'assignments'),
+      where('classId', '==', classId),
+      where('subjectId', '==', subj.id),
+      where('semesterYear', '==', currentSemester.year),
+      where('semesterNum', '==', currentSemester.semester));
+    const snap = await getDocs(q);
+    const taken = snap.docs.find(d => d.data().teacherEmail !== currentUser.email);
+    const mine = existing.find(a => a.subjectId === subj.id);
+
+    html += `<div class="subject-row" style="margin-bottom:8px">
+      <div class="subject-info">
+        <div class="subject-name">${subj.name}</div>
+        ${taken ? `<div class="subject-meta" style="color:var(--warning)">已由其他老師任教</div>` : ''}
+      </div>
+      ${!taken || mine ? `
+        <div style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:0.78rem;color:var(--gray-500)">節數</label>
+          <input type="number" style="width:60px" class="grade-input" id="hours-${subj.id}" value="${mine?.hours || 1}" min="1" max="${subj.hours || 1}">
+          <input type="checkbox" id="bind-${subj.id}" ${mine ? 'checked' : ''} onchange="toggleBindSubject('${classId}','${subj.id}','${subj.name}',this)">
+        </div>
+      ` : `<span class="tag" style="background:var(--gray-100);color:var(--gray-400)">已佔用</span>`}
+    </div>`;
+  }
+  document.getElementById('bind-subject-list').innerHTML = html;
+};
+
+window.toggleBindSubject = async function(classId, subjectId, subjectName, cb) {
+  const hours = parseInt(document.getElementById('hours-' + subjectId)?.value) || 1;
+  if (cb.checked) {
+    const newDoc = {
+      teacherEmail: currentUser.email,
+      teacherName: userData.realName || '',
+      classId, subjectId, subjectName, hours,
+      semesterYear: currentSemester.year,
+      semesterNum: currentSemester.semester
+    };
+    const ref = await addDoc(collection(db, 'assignments'), newDoc);
+    myAssignments.push({ id: ref.id, ...newDoc });
+    showToast(`已綁定 ${classId}班 ${subjectName}`, 'success');
+  } else {
+    const found = myAssignments.find(a => a.classId === classId && a.subjectId === subjectId);
+    if (found?.id) await deleteDoc(doc(db, 'assignments', found.id));
+    myAssignments = myAssignments.filter(a => !(a.classId === classId && a.subjectId === subjectId));
+    showToast(`已解除 ${classId}班 ${subjectName}`, 'info');
+  }
+  renderDashboard();
+};
+
+// ===== ROSTER =====
+window.loadRoster = async function() {
+  const classId = document.getElementById('roster-class-select').value;
+  if (!classId) return;
+  const wrap = document.getElementById('roster-table-wrap');
+  wrap.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+
+  const q = query(collection(db, 'students'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester),
+    orderBy('seatNo'));
+  const snap = await getDocs(q);
+  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  if (students.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><div class="icon">👥</div><p>尚無學生資料<br><small>請使用上方「快速匯入」或「新增學生」</small></p></div>`;
+    return;
+  }
+
+  let html = `<div class="table-wrapper"><table>
+    <thead><tr><th>座號</th><th>學號</th><th>姓名</th><th>特殊標記</th><th>綁定帳號</th><th>操作</th></tr></thead>
+    <tbody>`;
+  for (const s of students) {
+    const tagMap = { skip:'跳級', self:'自學', special:'特教' };
+    const tagClass = { skip:'tag-skip', self:'tag-self', special:'tag-special' };
+    const tagHtml = s.specialMark ? `<span class="tag ${tagClass[s.specialMark]}">${tagMap[s.specialMark]}</span>` : '—';
+    html += `<tr>
+      <td>${s.seatNo.toString().padStart(2,'0')}</td>
+      <td>${s.studentId || '—'}</td>
+      <td class="td-name">${s.name}</td>
+      <td>${tagHtml}</td>
+      <td><span class="text-xs text-muted">${s.boundEmail || '未綁定'}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="openSpecialModal('${s.id}','${s.name}','${classId}')">標記</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}','${s.name}')">刪除</button>
+      </td>
+    </tr>`;
+  }
+  html += `</tbody></table></div>`;
+  wrap.innerHTML = html;
+};
+
+window.parseImport = function() {
+  const text = document.getElementById('roster-import-text').value.trim();
+  const lines = text.split('\n').filter(l => l.trim());
+  importedStudents = [];
+  const errors = [];
+
+  lines.forEach((line, i) => {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 3) { errors.push(`第${i+1}行格式錯誤`); return; }
+    const [studentId, seatNo, ...nameParts] = parts;
+    importedStudents.push({ studentId, seatNo: parseInt(seatNo), name: nameParts.join('') });
+  });
+
+  if (errors.length) { showToast(errors.join(', '), 'error'); }
+  if (importedStudents.length === 0) return;
+
+  document.getElementById('import-count').textContent = importedStudents.length;
+  let tbody = '';
+  importedStudents.forEach(s => tbody += `<tr><td>${s.seatNo}</td><td>${s.studentId}</td><td>${s.name}</td></tr>`);
+  document.getElementById('import-preview-tbody').innerHTML = tbody;
+  document.getElementById('import-preview').style.display = 'block';
+  document.getElementById('import-confirm-btn').disabled = false;
+};
+
+window.confirmImport = async function() {
+  const classId = document.getElementById('roster-class-select').value;
+  if (!classId) { showToast('請先選擇班級', 'error'); return; }
+  if (importedStudents.length === 0) return;
+
+  const batch = writeBatch(db);
+  importedStudents.forEach(s => {
+    const ref = doc(collection(db, 'students'));
+    batch.set(ref, {
+      classId, studentId: s.studentId, seatNo: s.seatNo, name: s.name,
+      semesterYear: currentSemester.year, semesterNum: currentSemester.semester,
+      specialMark: null, boundEmail: null, createdAt: new Date()
+    });
+  });
+  await batch.commit();
+  showToast(`成功匯入 ${importedStudents.length} 位學生！`, 'success');
+  closeModal('roster-modal');
+  loadRoster();
+};
+
+window.addStudent = async function() {
+  const classId = document.getElementById('roster-class-select').value;
+  if (!classId) { showToast('請先選擇班級', 'error'); return; }
+  const studentId = document.getElementById('new-student-id').value.trim();
+  const seatNo = parseInt(document.getElementById('new-student-no').value);
+  const name = document.getElementById('new-student-name').value.trim();
+  if (!name || !seatNo) { showToast('請填寫座號與姓名', 'error'); return; }
+
+  await addDoc(collection(db, 'students'), {
+    classId, studentId, seatNo, name,
+    semesterYear: currentSemester.year, semesterNum: currentSemester.semester,
+    specialMark: null, boundEmail: null, createdAt: new Date()
+  });
+  showToast('新增成功', 'success');
+  closeModal('add-student-modal');
+  loadRoster();
+};
+
+window.deleteStudent = async function(id, name) {
+  if (!confirm(`確定要刪除學生「${name}」？此操作將移除綁定資料且無法復原。`)) return;
+  await deleteDoc(doc(db, 'students', id));
+  showToast(`已刪除 ${name}`, 'info');
+  loadRoster();
+};
+
+// ===== SPECIAL MARKS =====
+window.openSpecialModal = async function(studentId, name, classId) {
+  document.getElementById('special-student-name').textContent = name;
+  document.getElementById('special-student-id').value = studentId;
+
+  const snap = await getDoc(doc(db, 'students', studentId));
+  const s = snap.data();
+  document.getElementById('special-type-select').value = s.specialMark || '';
+
+  // Populate skip subjects
+  const grade = getGrade(classId);
+  const subjects = getSubjectsForGrade(grade);
+  const subSel = document.getElementById('skip-subject-select');
+  subSel.innerHTML = subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  if (s.skipSubjects) s.skipSubjects.forEach(sv => {
+    Array.from(subSel.options).forEach(o => { if (o.value === sv) o.selected = true; });
+  });
+
+  const classSel = document.getElementById('skip-class-select');
+  classSel.innerHTML = '<option value="">請選擇班級</option>' + ALL_CLASSES.map(c => `<option value="${c}">${c}班</option>`).join('');
+  if (s.skipClass) classSel.value = s.skipClass;
+
+  document.getElementById('special-type-select').onchange = function() {
+    document.getElementById('skip-detail').style.display = this.value === 'skip' ? 'block' : 'none';
+  };
+  document.getElementById('skip-detail').style.display = s.specialMark === 'skip' ? 'block' : 'none';
+
+  showModal('special-modal');
+};
+
+window.saveSpecialMark = async function() {
+  const id = document.getElementById('special-student-id').value;
+  const type = document.getElementById('special-type-select').value;
+  const updates = { specialMark: type || null };
+
+  if (type === 'skip') {
+    const sel = document.getElementById('skip-subject-select');
+    updates.skipSubjects = Array.from(sel.selectedOptions).map(o => o.value);
+    updates.skipClass = document.getElementById('skip-class-select').value;
+  } else {
+    updates.skipSubjects = null;
+    updates.skipClass = null;
+  }
+
+  await updateDoc(doc(db, 'students', id), updates);
+  showToast('標記已儲存', 'success');
+  closeModal('special-modal');
+  loadRoster();
+};
+
+// ===== GRADES INPUT =====
+window.loadGradeSubjects = async function() {
+  const classId = document.getElementById('grade-class-select').value;
+  if (!classId) return;
+  currentGradeClass = classId;
+
+  const mySubjects = myAssignments.filter(a => a.classId === classId && a.subjectId);
+  const listEl = document.getElementById('grade-subject-list');
+
+  if (mySubjects.length === 0) {
+    listEl.innerHTML = `<div class="text-sm text-muted mt-2">此班級尚無任課科目</div>`;
+    return;
+  }
+
+  let html = '';
+  for (const s of mySubjects) {
+    const lockSnap = await getDoc(doc(db, 'gradeLocks', `${currentSemester.year}-${currentSemester.semester}-${classId}-${s.subjectId}`));
+    const locked = lockSnap.exists() && lockSnap.data().locked;
+    html += `<div class="subject-row ${locked ? 'locked' : 'unlocked'}" onclick="openGradeInput('${s.classId}','${s.subjectId}','${s.subjectName}',${s.hours||1})" style="cursor:pointer">
+      <div class="subject-info">
+        <div class="subject-name">${s.subjectName}${s.hours > 1 ? `(${s.hours}節)` : ''}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="light-dot ${locked ? 'light-green' : 'light-red'}"></span>
+        <span class="text-xs ${locked ? 'tag-locked' : ''}">${locked ? '已鎖定' : '未鎖定'}</span>
+      </div>
+    </div>`;
+  }
+  listEl.innerHTML = html;
+};
+
+window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
+  currentGradeClass = classId;
+  currentGradeSubject = { id: subjectId, name: subjectName, hours };
+
+  const area = document.getElementById('grade-input-area');
+  area.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+
+  // Load students
+  const studentsQ = query(collection(db, 'students'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester),
+    orderBy('seatNo'));
+  const studentsSnap = await getDocs(studentsQ);
+  const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Load weights
+  const wId = `${currentSemester.year}-${currentSemester.semester}-${classId}-${subjectId}`;
+  const wSnap = await getDoc(doc(db, 'gradeWeights', wId));
+  const weights = wSnap.exists() ? wSnap.data() : { w1: 25, w2: 25, w3: 25, w4: 25 };
+
+  // Load grade items for section 1 & 2
+  const items1Snap = await getDocs(query(collection(db, 'gradeItems'),
+    where('key', '==', `${wId}-1`)));
+  const items2Snap = await getDocs(query(collection(db, 'gradeItems'),
+    where('key', '==', `${wId}-2`)));
+  const items1 = items1Snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const items2 = items2Snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Load existing grades
+  const gradesSnap = await getDocs(query(collection(db, 'grades'),
+    where('classId', '==', classId),
+    where('subjectId', '==', subjectId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester)));
+  const gradesMap = {};
+  gradesSnap.docs.forEach(d => { gradesMap[d.data().studentId + '-' + d.data().section + '-' + d.data().item] = { id: d.id, score: d.data().score }; });
+
+  // Load lock status
+  const lockSnap = await getDoc(doc(db, 'gradeLocks', wId));
+  const locked = lockSnap.exists() && lockSnap.data().locked;
+
+  // Load skip students for this subject
+  const skipStudents = students.filter(s => s.specialMark === 'skip' && s.skipSubjects?.includes(subjectId));
+  const skipStudentIds = new Set(skipStudents.map(s => s.id));
+
+  // Check if there are skip students who jump into this class
+  const skipInQ = query(collection(db, 'students'),
+    where('skipClass', '==', classId),
+    where('skipSubjects', 'array-contains', subjectId));
+  const skipInSnap = await getDocs(skipInQ);
+  const skipInStudents = skipInSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Build HTML
+  const lockLabel = locked
+    ? `<span class="light-dot light-green"></span> 已鎖定（期末成績）`
+    : `<span class="light-dot light-red"></span> 未鎖定（非最終成績）`;
+
+  let html = `<div class="card">
+    <div class="card-header" style="flex-wrap:wrap;gap:8px">
+      <div class="card-title">${classId}班 · ${subjectName}${hours > 1 ? `(${hours}節)` : ''}</div>
+      <div class="flex items-center gap-2 text-sm">${lockLabel}</div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="openWeightModal()">⚖️ 設定權重</button>
+        ${!locked
+          ? `<button class="btn btn-success btn-sm" onclick="lockGrades('${wId}')">🔒 期末鎖定</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="unlockGrades('${wId}')">🔓 解除鎖定</button>`
+        }
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="weight-bar mb-3">
+        <span>權重：</span>
+        <span class="weight-chip">平時1：${weights.w1}%</span>
+        <span class="weight-chip">平時2：${weights.w2}%</span>
+        <span class="weight-chip">考試1：${weights.w3}%</span>
+        <span class="weight-chip">考試2：${weights.w4}%</span>
+      </div>`;
+
+  // Sections
+  const sections = [
+    { key: '1', label: '第一次平時成績', items: items1, w: weights.w1 },
+    { key: '2', label: '第二次平時成績', items: items2, w: weights.w2 },
+    { key: 'exam1', label: '第一次定期評量', items: null, w: weights.w3 },
+    { key: 'exam2', label: '第二次定期評量', items: null, w: weights.w4 },
+  ];
+
+  for (const sec of sections) {
+    if (sec.w === 0) continue;
+    html += `<div class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <div style="font-weight:600;font-size:0.9rem">${sec.label} <span class="text-muted text-xs">（權重 ${sec.w}%）</span></div>
+        ${sec.items !== null ? `<button class="btn btn-ghost btn-sm" onclick="openItemsModal('${wId}','${sec.key}','${sec.label}')">設定細項</button>` : ''}
+      </div>`;
+
+    if (sec.items !== null && sec.items.length === 0) {
+      html += `<div class="alert alert-warning">尚未設定評分細項，請點選「設定細項」</div>`;
+    } else {
+      const itemList = sec.items || [{ id: 'single', name: '成績' }];
+      html += `<div class="table-wrapper"><table class="grade-table">
+        <thead><tr>
+          <th>座號</th><th>姓名</th>
+          ${itemList.map(it => `<th>${it.name}${it.weight ? `<br><small>${it.weight}%</small>` : ''}</th>`).join('')}
+          ${itemList.length > 1 ? '<th>小計</th>' : ''}
+        </tr></thead>
+        <tbody>`;
+
+      let sectionScores = [];
+      for (const st of students) {
+        if (st.specialMark === 'self') continue; // 自學生跳過
+        const isSkip = skipStudentIds.has(st.id);
+        const tagHtml = st.specialMark ? `<span class="tag tag-${st.specialMark}" style="font-size:0.65rem">${{skip:'跳',self:'自',special:'特'}[st.specialMark]}</span>` : '';
+        
+        let rowScores = [];
+        let cellsHtml = '';
+        for (const it of itemList) {
+          const gKey = `${st.id}-${sec.key}-${it.id}`;
+          const existing = gradesMap[gKey];
+          const val = existing?.score ?? '';
+          if (isSkip) {
+            cellsHtml += `<td><span class="text-muted text-xs">—</span></td>`;
+          } else {
+            cellsHtml += `<td><input type="number" class="grade-input" min="0" max="100"
+              data-sid="${st.id}" data-section="${sec.key}" data-item="${it.id}"
+              value="${val}" ${locked ? 'disabled' : ''}
+              onchange="saveGrade(this,'${classId}','${subjectId}','${wId}')"
+              oninput="updateRowAvg(this)"></td>`;
+            if (val !== '') rowScores.push({ score: parseFloat(val), weight: it.weight || (100/itemList.length) });
+          }
+        }
+
+        let subtotal = '';
+        if (itemList.length > 1 && !isSkip) {
+          const total = rowScores.length > 0
+            ? rowScores.reduce((s, x) => s + x.score * x.weight / 100, 0) : 0;
+          subtotal = `<td class="final-score" id="sub-${st.id}-${sec.key}">${rowScores.length > 0 ? total.toFixed(1) : ''}</td>`;
+          if (rowScores.length > 0) sectionScores.push(total);
+        } else if (!isSkip && itemList.length === 1) {
+          const v = parseFloat(Object.values(gradesMap).find(g => g)?.score ?? '');
+          if (!isNaN(v)) sectionScores.push(v);
+        }
+
+        html += `<tr class="${isSkip ? 'text-muted' : ''}">
+          <td>${st.seatNo.toString().padStart(2,'0')}</td>
+          <td class="td-name">${st.name} ${tagHtml}</td>
+          ${cellsHtml}
+          ${itemList.length > 1 ? subtotal : ''}
+        </tr>`;
+      }
+
+      // Average row
+      const avg = sectionScores.length > 0 ? (sectionScores.reduce((a,b)=>a+b,0)/sectionScores.length).toFixed(2) : '—';
+      html += `<tr class="avg-row"><td colspan="2">全班平均</td>
+        ${itemList.map(() => '<td>—</td>').join('')}
+        ${itemList.length > 1 ? `<td>${avg}</td>` : ''}</tr>`;
+      html += `</tbody></table></div>`;
+    }
+    html += '</div>';
+  }
+
+  // Skip students who jump into this class
+  if (skipInStudents.length > 0) {
+    html += `<div class="skip-section">
+      <div class="skip-section-title">📌 跳級生（來自其他班）</div>`;
+    for (const ss of skipInStudents) {
+      html += `<div class="flex items-center gap-2 mb-2">
+        <span class="tag tag-skip">${ss.classId}班 ${ss.seatNo}號</span>
+        <span style="font-weight:600">${ss.name}</span>
+        <input type="number" class="grade-input" min="0" max="100"
+          data-sid="${ss.id}" data-section="exam1" data-item="single"
+          value="${gradesMap[`${ss.id}-exam1-single`]?.score ?? ''}" ${locked ? 'disabled' : ''}
+          onchange="saveGrade(this,'${classId}','${subjectId}','${wId}')">
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  html += '</div></div>';
+  area.innerHTML = html;
+
+  // Store weights globally for modal
+  window._currentWeights = weights;
+  window._currentWId = wId;
+};
+
+window.saveGrade = async function(input, classId, subjectId, wId) {
+  const score = parseFloat(input.value);
+  if (isNaN(score) || score < 0 || score > 100) {
+    input.style.borderColor = 'var(--danger)';
+    return;
+  }
+  input.style.borderColor = '';
+  const sid = input.dataset.sid;
+  const section = input.dataset.section;
+  const item = input.dataset.item;
+  const key = `${sid}-${section}-${item}-${wId}`;
+
+  await setDoc(doc(db, 'grades', key), {
+    studentId: sid, classId, subjectId, section, item, score,
+    semesterYear: currentSemester.year, semesterNum: currentSemester.semester,
+    updatedAt: new Date()
+  });
+};
+
+window.lockGrades = async function(wId) {
+  if (!confirm('確定要鎖定此科目的期末成績嗎？鎖定後學生將看到「已鎖定」狀態。')) return;
+  await setDoc(doc(db, 'gradeLocks', wId), { locked: true, lockedAt: new Date(), lockedBy: currentUser.email });
+  showToast('期末成績已鎖定', 'success');
+  loadGradeSubjects();
+  openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
+};
+
+window.unlockGrades = async function(wId) {
+  if (!confirm('解除鎖定後成績可再次修改，確定嗎？')) return;
+  await setDoc(doc(db, 'gradeLocks', wId), { locked: false, unlockedAt: new Date() });
+  showToast('已解除鎖定', 'info');
+  loadGradeSubjects();
+  openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
+};
+
+// ===== WEIGHTS =====
+window.openWeightModal = function() {
+  const w = window._currentWeights || { w1:25, w2:25, w3:25, w4:25 };
+  document.getElementById('w1').value = w.w1;
+  document.getElementById('w2').value = w.w2;
+  document.getElementById('w3').value = w.w3;
+  document.getElementById('w4').value = w.w4;
+  updateWeightTotal();
+  showModal('weight-modal');
+};
+
+window.updateWeightTotal = function() {
+  const total = ['w1','w2','w3','w4'].reduce((s,id) => s + (parseInt(document.getElementById(id)?.value)||0), 0);
+  const el = document.getElementById('weight-total-display');
+  el.textContent = `總計：${total}%`;
+  el.className = 'weight-total ' + (total === 100 ? 'ok' : 'err');
+};
+
+window.saveWeights = async function() {
+  const vals = ['w1','w2','w3','w4'].map(id => parseInt(document.getElementById(id).value)||0);
+  if (vals.reduce((a,b)=>a+b,0) !== 100) { showToast('權重總和必須等於 100%', 'error'); return; }
+  const [w1,w2,w3,w4] = vals;
+  await setDoc(doc(db, 'gradeWeights', window._currentWId), { w1, w2, w3, w4, updatedAt: new Date() });
+  window._currentWeights = { w1, w2, w3, w4 };
+  showToast('權重已儲存', 'success');
+  closeModal('weight-modal');
+  if (currentGradeSubject) openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
+};
+
+// ===== GRADE ITEMS =====
+window.openItemsModal = function(wId, section, label) {
+  currentGradeItems = { wId, section };
+  document.getElementById('items-section-label').textContent = label;
+  const list = document.getElementById('grade-items-list');
+  list.innerHTML = '';
+  // TODO: load existing items
+  addGradeItem();
+  updateItemsTotal();
+  showModal('items-modal');
+};
+
+window.addGradeItem = function() {
+  const list = document.getElementById('grade-items-list');
+  const row = document.createElement('div');
+  row.className = 'grade-item-row';
+  row.innerHTML = `
+    <input type="text" class="form-control" placeholder="項目名稱（如：作業）" oninput="autoDistributeItemWeights()">
+    <input type="number" class="form-control" placeholder="%" min="0" max="100" oninput="updateItemsTotal()" style="max-width:80px">
+    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove();updateItemsTotal()">✕</button>`;
+  list.appendChild(row);
+  autoDistributeItemWeights();
+};
+
+window.autoDistributeItemWeights = function() {
+  const rows = document.querySelectorAll('#grade-items-list .grade-item-row');
+  const avg = Math.floor(100 / rows.length);
+  let remaining = 100;
+  rows.forEach((row, i) => {
+    const inp = row.querySelectorAll('input')[1];
+    if (i < rows.length - 1) { inp.value = avg; remaining -= avg; }
+    else inp.value = remaining;
+  });
+  updateItemsTotal();
+};
+
+window.updateItemsTotal = function() {
+  const total = Array.from(document.querySelectorAll('#grade-items-list .grade-item-row input[type="number"]'))
+    .reduce((s, inp) => s + (parseInt(inp.value)||0), 0);
+  const el = document.getElementById('items-total-display');
+  el.textContent = `總計：${total}%`;
+  el.className = 'weight-total ' + (total === 100 ? 'ok' : 'err');
+};
+
+window.saveGradeItems = async function() {
+  const rows = document.querySelectorAll('#grade-items-list .grade-item-row');
+  const items = [];
+  let total = 0;
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const name = inputs[0].value.trim();
+    const weight = parseInt(inputs[1].value) || 0;
+    if (name) { items.push({ name, weight }); total += weight; }
+  });
+  if (total !== 100) { showToast('權重總和必須等於 100%', 'error'); return; }
+  if (items.length === 0) { showToast('請至少新增一個項目', 'error'); return; }
+
+  const key = `${currentGradeItems.wId}-${currentGradeItems.section}`;
+  // Delete existing
+  const existingQ = query(collection(db, 'gradeItems'), where('key', '==', key));
+  const existingSnap = await getDocs(existingQ);
+  const batch = writeBatch(db);
+  existingSnap.docs.forEach(d => batch.delete(d.ref));
+  items.forEach(it => {
+    const ref = doc(collection(db, 'gradeItems'));
+    batch.set(ref, { ...it, key, wId: currentGradeItems.wId, section: currentGradeItems.section });
+  });
+  await batch.commit();
+  showToast('細項已儲存', 'success');
+  closeModal('items-modal');
+  if (currentGradeSubject) openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
+};
+
+// ===== CLASS OVERVIEW (homeroom) =====
+async function loadOverview() {
+  if (!userData?.homeroomClass) return;
+  const classId = userData.homeroomClass;
+  const grade = getGrade(classId);
+  const subjects = getSubjectsForGrade(grade);
+
+  const studentsQ = query(collection(db, 'students'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester),
+    orderBy('seatNo'));
+  const studentsSnap = await getDocs(studentsQ);
+  const students = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  // Get assignments for this class
+  const assignQ = query(collection(db, 'assignments'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const assignSnap = await getDocs(assignQ);
+  const assignments = assignSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  const wrap = document.getElementById('overview-table-wrap');
+  if (students.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>尚無學生資料</p></div>';
+    return;
+  }
+
+  // Build non-flex subjects
+  const nonFlexSubjects = subjects.filter(s => s.domain !== 'flex');
+
+  let html = `<div class="table-wrapper"><table>
+    <thead><tr>
+      <th>座號</th><th>姓名</th>
+      ${nonFlexSubjects.map(s => {
+        const assign = assignments.filter(a => a.subjectId === s.id);
+        if (assign.length > 1) return assign.map(a => `<th>${s.name}<br><small>${a.hours}節</small></th>`).join('');
+        return `<th>${s.name}</th>`;
+      }).join('')}
+      <th>一般平均</th><th>領域平均</th>
+    </tr></thead>
+    <tbody>`;
+
+  for (const st of students) {
+    if (st.specialMark === 'self') continue;
+    const tagMap = { skip:'跳', special:'特' };
+    const tag = st.specialMark ? `<span class="tag tag-${st.specialMark}" style="font-size:0.65rem">${tagMap[st.specialMark]||''}</span>` : '';
+
+    html += `<tr><td>${st.seatNo.toString().padStart(2,'0')}</td><td class="td-name">${st.name} ${tag}</td>`;
+
+    let allScores = [];
+    for (const subj of nonFlexSubjects) {
+      const isSkip = st.specialMark === 'skip' && st.skipSubjects?.includes(subj.id);
+      if (isSkip) {
+        html += `<td><span class="text-muted text-xs">跳級</span></td>`;
+      } else {
+        // Get final computed score
+        const finalScore = await computeFinalScore(st.id, classId, subj.id);
+        const display = finalScore !== null ? finalScore.toFixed(1) : `<span class="text-muted text-xs">待輸入</span>`;
+        html += `<td class="final-score">${display}</td>`;
+        if (finalScore !== null) allScores.push({ score: finalScore, domain: subj.domain });
+      }
+    }
+
+    const avg = allScores.length > 0 ? (allScores.reduce((a,b) => a + b.score, 0) / allScores.length).toFixed(2) : '—';
+    const domainAvg = computeDomainAvg(allScores);
+
+    html += `<td class="final-score">${avg}</td><td class="final-score">${domainAvg}</td></tr>`;
+  }
+
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+async function computeFinalScore(studentId, classId, subjectId) {
+  const wId = `${currentSemester.year}-${currentSemester.semester}-${classId}-${subjectId}`;
+  const wSnap = await getDoc(doc(db, 'gradeWeights', wId));
+  const weights = wSnap.exists() ? wSnap.data() : { w1:25, w2:25, w3:25, w4:25 };
+
+  const gradesSnap = await getDocs(query(collection(db, 'grades'),
+    where('studentId', '==', studentId),
+    where('subjectId', '==', subjectId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester)));
+
+  if (gradesSnap.empty) return null;
+
+  const grades = {};
+  gradesSnap.docs.forEach(d => {
+    const g = d.data();
+    if (!grades[g.section]) grades[g.section] = [];
+    grades[g.section].push(g.score);
+  });
+
+  let total = 0, totalWeight = 0;
+  const sectionWeights = { '1': weights.w1, '2': weights.w2, 'exam1': weights.w3, 'exam2': weights.w4 };
+  for (const [sec, w] of Object.entries(sectionWeights)) {
+    if (w === 0) continue;
+    if (grades[sec] && grades[sec].length > 0) {
+      const avg = grades[sec].reduce((a,b)=>a+b,0) / grades[sec].length;
+      total += avg * w / 100;
+      totalWeight += w;
+    }
+  }
+  if (totalWeight === 0) return null;
+  return total * 100 / totalWeight;
+}
+
+function computeDomainAvg(scores) {
+  const domains = {};
+  for (const { score, domain } of scores) {
+    if (!domains[domain]) domains[domain] = [];
+    domains[domain].push(score);
+  }
+  const domainAvgs = Object.values(domains).map(arr => arr.reduce((a,b)=>a+b,0)/arr.length);
+  return domainAvgs.length > 0 ? (domainAvgs.reduce((a,b)=>a+b,0)/domainAvgs.length).toFixed(2) : '—';
+}
+
+// ===== RANKING =====
+async function loadRanking() {
+  const wrap = document.getElementById('ranking-table-wrap');
+  wrap.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+  // Similar to overview but with rank computation
+  wrap.innerHTML = `<div class="alert alert-info">排名功能正在計算中，請稍後...</div>`;
+  // TODO: full ranking implementation
+}
+
+// ===== SEMESTER =====
+function initSemesterSelector() {
+  const sel = document.getElementById('semester-select-top');
+  sel.innerHTML = '';
+  // Generate semesters from 111-1 to current
+  for (let y = 114; y >= 111; y--) {
+    for (let s = 2; s >= 1; s--) {
+      const opt = document.createElement('option');
+      opt.value = `${y}-${s}`;
+      opt.textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
+      if (y === currentSemester.year && s === currentSemester.semester) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+window.changeSemester = function() {
+  const val = document.getElementById('semester-select-top').value;
+  const [y, s] = val.split('-').map(Number);
+  currentSemester = { year: y, semester: s };
+  document.getElementById('sidebar-semester').textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
+  loadMyAssignments();
+};
+
+// ===== EXPORT =====
+window.exportBlankRoster = function() {
+  const classId = document.getElementById('roster-class-select').value || (userData?.homeroomClass || '');
+  showToast('空白點名表匯出功能開發中（即將完成）', 'info');
+};
+
+window.exportBlankGrade = function() {
+  showToast('空白成績登錄表匯出功能開發中（即將完成）', 'info');
+};
+
+window.exportOverviewPDF = function() {
+  window.print();
+};
+
+window.exportOverviewExcel = function() {
+  showToast('Excel 匯出功能開發中', 'info');
+};
+
+window.exportFullGrades = function() {
+  showToast('完整成績匯出功能開發中', 'info');
+};
+
+// ===== NAV =====
+window.showPage = function(page) {
+  document.querySelectorAll('[id^="page-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const pageEl = document.getElementById('page-' + page);
+  if (pageEl) pageEl.style.display = 'block';
+  const navEl = document.getElementById('nav-' + page);
+  if (navEl) navEl.classList.add('active');
+  const titles = { dashboard:'首頁總覽', roster:'學生名單管理', grades:'成績輸入',
+    overview:'班級成績總覽', ranking:'成績排名', bind:'設定任課', semester:'切換學年學期' };
+  document.getElementById('topbar-title').textContent = titles[page] || '';
+
+  if (page === 'overview') loadOverview();
+  if (page === 'ranking') loadRanking();
+};
+
+function populateClassSelects() {
+  const myClasses = [...new Set(myAssignments.map(a => a.classId))];
+  if (userData?.homeroomClass && !myClasses.includes(userData.homeroomClass))
+    myClasses.unshift(userData.homeroomClass);
+}
+
+// ===== HELPERS =====
+function hideLoading() {
+  const el = document.getElementById('loading-screen');
+  el.style.opacity = '0';
+  setTimeout(() => el.style.display = 'none', 400);
+}
+
+window.showModal = function(id) { document.getElementById(id).style.display = 'flex'; };
+window.closeModal = function(id) { document.getElementById(id).style.display = 'none'; };
+window.doLogout = async function() {
+  await signOut(auth);
+  window.location.href = '../index.html';
+};
+
+window.showToast = function(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+};
+</script>
+</body>
+</html>
