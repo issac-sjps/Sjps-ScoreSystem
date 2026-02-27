@@ -602,7 +602,21 @@ onAuthStateChanged(auth, async (user) => {
 
 async function loadCurrentSemester() {
   const snap = await getDoc(doc(db, 'settings', 'currentSemester'));
-  if (snap.exists()) currentSemester = snap.data();
+  if (snap.exists()) {
+    currentSemester = snap.data();
+  } else {
+    // Auto-compute semester from current date
+    const now = new Date();
+    const m = now.getMonth() + 1;
+    const roc = now.getFullYear() - 1911;
+    if ((m >= 2 && m <= 6) || (m === 7 || m === 8)) {
+      currentSemester = { year: roc - 1, semester: 2 };
+    } else {
+      currentSemester = { year: m >= 9 ? roc : roc - 1, semester: 1 };
+    }
+    // Save auto-computed to Firestore so it's consistent
+    await setDoc(doc(db, 'settings', 'currentSemester'), currentSemester);
+  }
   document.getElementById('sidebar-semester').textContent =
     `${currentSemester.year}學年度 第${currentSemester.semester===1?'一':'二'}學期`;
 }
@@ -842,55 +856,110 @@ window.switchRosterTab = function(tab, btn) {
 
 window.adminParseImport = function() {
   const text = document.getElementById('admin-import-text').value.trim();
+  if (!text) { showToast('請先貼上名單內容', 'error'); return; }
+
   const lines = text.split('\n').filter(l => l.trim());
   adminImportedStudents = [];
+  const errors = [];
 
   lines.forEach((line, i) => {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length < 3) return;
-    const [studentId, seatNo, ...nameParts] = parts;
-    adminImportedStudents.push({ studentId, seatNo: parseInt(seatNo), name: nameParts.join('') });
+    const parts = line.trim().split(/[\s\t]+/);
+    if (parts.length < 2) { errors.push(`第${i+1}行格式有誤`); return; }
+
+    let studentId = '', seatNo, name;
+    // Auto-detect: if first part is 6-digit number, treat as studentId
+    if (/^\d{5,6}$/.test(parts[0]) && parts.length >= 3) {
+      studentId = parts[0];
+      seatNo = parseInt(parts[1]);
+      name = parts.slice(2).join('');
+    } else {
+      // fallback: seatNo name (no studentId)
+      seatNo = parseInt(parts[0]);
+      name = parts.slice(1).join('');
+    }
+
+    if (!name || isNaN(seatNo)) { errors.push(`第${i+1}行無法解析`); return; }
+    adminImportedStudents.push({ studentId, seatNo, name });
   });
 
-  if (adminImportedStudents.length === 0) { showToast('無法解析，請確認格式', 'error'); return; }
+  if (errors.length > 0) showToast(errors.slice(0,3).join('；') + (errors.length > 3 ? '…' : ''), 'warning');
+  if (adminImportedStudents.length === 0) { showToast('無法解析任何資料，請確認格式', 'error'); return; }
 
   document.getElementById('admin-import-count').textContent = adminImportedStudents.length;
   let tbody = '';
-  adminImportedStudents.forEach(s => tbody += `<tr><td>${s.seatNo}</td><td>${s.studentId}</td><td>${s.name}</td></tr>`);
+  adminImportedStudents.forEach(s => tbody += `<tr><td>${String(s.seatNo).padStart(2,'0')}</td><td>${s.studentId||'—'}</td><td>${s.name}</td></tr>`);
   document.getElementById('admin-import-preview-tbody').innerHTML = tbody;
   document.getElementById('admin-import-preview').style.display = 'block';
   document.getElementById('admin-import-confirm-btn').disabled = false;
+  showToast(`解析完成：${adminImportedStudents.length} 位學生`, 'success');
 };
 
 window.adminConfirmImport = async function() {
-  if (!adminRosterClassId || adminImportedStudents.length === 0) return;
-  const replace = document.getElementById('admin-import-replace').checked;
-
-  const batch = writeBatch(db);
-
-  if (replace) {
-    // Delete existing
-    const existing = await getDocs(query(collection(db, 'students'),
-      where('classId', '==', adminRosterClassId),
-      where('semesterYear', '==', currentSemester.year),
-      where('semesterNum', '==', currentSemester.semester)));
-    existing.docs.forEach(d => batch.delete(d.ref));
+  if (!adminRosterClassId || adminImportedStudents.length === 0) {
+    showToast('請先完成預覽解析', 'error'); return;
   }
 
-  adminImportedStudents.forEach(s => {
-    const ref = doc(collection(db, 'students'));
-    batch.set(ref, {
-      classId: adminRosterClassId, studentId: s.studentId,
-      seatNo: s.seatNo, name: s.name,
-      semesterYear: currentSemester.year, semesterNum: currentSemester.semester,
-      specialMark: null, boundEmail: null, createdAt: new Date()
-    });
-  });
+  const btn = document.getElementById('admin-import-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = '匯入中...';
 
-  await batch.commit();
-  showToast(`成功匯入 ${adminImportedStudents.length} 位學生！`, 'success');
-  closeModal('admin-roster-modal');
-  loadAdminStudents();
+  try {
+    const replace = document.getElementById('admin-import-replace').checked;
+
+    // Step 1: delete existing if replace checked (separate batch)
+    if (replace) {
+      const existing = await getDocs(query(collection(db, 'students'),
+        where('classId', '==', adminRosterClassId),
+        where('semesterYear', '==', currentSemester.year),
+        where('semesterNum', '==', currentSemester.semester)));
+
+      // Delete in chunks of 400
+      const chunks = [];
+      for (let i = 0; i < existing.docs.length; i += 400)
+        chunks.push(existing.docs.slice(i, i + 400));
+      for (const chunk of chunks) {
+        const b = writeBatch(db);
+        chunk.forEach(d => b.delete(d.ref));
+        await b.commit();
+      }
+    }
+
+    // Step 2: insert new students in chunks of 400
+    const chunks = [];
+    for (let i = 0; i < adminImportedStudents.length; i += 400)
+      chunks.push(adminImportedStudents.slice(i, i + 400));
+
+    for (const chunk of chunks) {
+      const b = writeBatch(db);
+      chunk.forEach(s => {
+        const ref = doc(collection(db, 'students'));
+        b.set(ref, {
+          classId: adminRosterClassId,
+          studentId: s.studentId || '',
+          seatNo: s.seatNo,
+          name: s.name,
+          semesterYear: currentSemester.year,
+          semesterNum: currentSemester.semester,
+          specialMark: null,
+          boundEmail: null,
+          createdAt: new Date()
+        });
+      });
+      await b.commit();
+    }
+
+    showToast(`✅ 成功匯入 ${adminImportedStudents.length} 位學生！`, 'success');
+    // Switch to list tab to verify, don't close modal immediately
+    const listTabBtn = document.querySelector('#admin-roster-modal .tabs .tab-btn:nth-child(3)');
+    if (listTabBtn) switchRosterTab('list', listTabBtn);
+    loadAdminStudents();
+  } catch(e) {
+    console.error('Import error:', e);
+    showToast('匯入失敗：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '確認匯入';
+  }
 };
 
 window.adminAddStudent = async function() {
@@ -928,10 +997,10 @@ async function loadAdminRosterList() {
   const q = query(collection(db, 'students'),
     where('classId', '==', adminRosterClassId),
     where('semesterYear', '==', currentSemester.year),
-    where('semesterNum', '==', currentSemester.semester),
-    orderBy('seatNo'));
+    where('semesterNum', '==', currentSemester.semester));
   const snap = await getDocs(q);
-  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => a.seatNo - b.seatNo);
 
   if (students.length === 0) {
     wrap.innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>尚無學生</p></div>';
@@ -972,10 +1041,10 @@ async function loadAdminStudents() {
   const q = query(collection(db, 'students'),
     where('classId', '==', classId),
     where('semesterYear', '==', currentSemester.year),
-    where('semesterNum', '==', currentSemester.semester),
-    orderBy('seatNo'));
+    where('semesterNum', '==', currentSemester.semester));
   const snap = await getDocs(q);
-  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => a.seatNo - b.seatNo); // client-side sort, no index needed
 
   const wrap = document.getElementById('admin-students-wrap');
   if (students.length === 0) {
