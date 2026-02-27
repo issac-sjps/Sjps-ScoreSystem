@@ -128,11 +128,132 @@
       margin-bottom: 12px;
     }
 
-    /* 成績表格樣式 */
-    .grade-table-wrap { overflow-x: auto; }
-    .grade-table { min-width: 600px; }
-    .grade-table th, .grade-table td { padding: 7px 8px; }
-    .final-score { font-weight: 700; color: var(--primary); }
+    /* Excel 式成績表格 */
+    .excel-grade-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      font-size: 0.82rem;
+      min-width: 500px;
+    }
+    .excel-grade-table th {
+      background: var(--primary);
+      color: white;
+      padding: 8px 10px;
+      text-align: center;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      font-weight: 600;
+      font-size: 0.78rem;
+    }
+    .excel-grade-table th.col-sticky {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+    }
+    .excel-grade-table th.col-seat { min-width: 52px; left: 0; }
+    .excel-grade-table th.col-name { min-width: 80px; left: 52px; }
+    .excel-grade-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--gray-100);
+      border-right: 1px solid var(--gray-100);
+      text-align: center;
+      vertical-align: middle;
+    }
+    .excel-grade-table td.col-seat {
+      position: sticky; left: 0; z-index: 1;
+      background: var(--gray-50);
+      font-weight: 600; color: var(--gray-500);
+      min-width: 52px;
+    }
+    .excel-grade-table td.col-name {
+      position: sticky; left: 52px; z-index: 1;
+      background: white;
+      text-align: left; font-weight: 600;
+      padding-left: 10px; min-width: 80px;
+      white-space: nowrap;
+    }
+    .excel-grade-table tr:hover td { background: #f0f6ff !important; }
+    .excel-grade-table tr:hover td.col-seat { background: #e0ecff !important; }
+    .excel-grade-table .avg-row td {
+      background: var(--primary) !important;
+      color: white !important;
+      font-weight: 700;
+    }
+    .excel-grade-table .total-col { background: #fff8e1 !important; font-weight: 700; color: var(--primary); }
+    .excel-grade-table .exam-col { background: #f0fdf4; }
+    .excel-grade-table th.exam-col { background: #166534; }
+    .excel-grade-table th.total-col { background: #92400e; }
+    .excel-grade-table .section-header th {
+      background: var(--primary-light);
+      color: white;
+      font-size: 0.72rem;
+      padding: 4px 8px;
+    }
+    .excel-grade-table .section-header th.exam-col { background: #15803d; }
+    .excel-grade-table .section-header th.total-col { background: #78350f; }
+    .grade-cell-input {
+      width: 56px; padding: 3px 4px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      text-align: center;
+      font-size: 0.82rem;
+      font-family: var(--font-sans);
+      background: transparent;
+      transition: border-color 0.1s;
+    }
+    .grade-cell-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: white;
+      box-shadow: 0 0 0 2px var(--primary-pale);
+    }
+    .grade-cell-input:disabled { background: transparent; color: var(--gray-400); cursor: not-allowed; }
+    .grade-cell-input.invalid { border-color: var(--danger) !important; background: #fef2f2; }
+    .section-divider { border-left: 2px solid var(--gray-300) !important; }
+    .grade-table-scroll { overflow-x: auto; max-height: calc(100vh - 260px); overflow-y: auto; }
+    .grade-section-tabs {
+      display: flex; gap: 0; border-bottom: 2px solid var(--primary);
+      margin-bottom: 0;
+    }
+    .grade-section-tab {
+      padding: 8px 20px; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--gray-200); border-bottom: none;
+      background: white; color: var(--gray-500);
+      border-radius: 6px 6px 0 0; margin-right: 4px;
+      transition: all 0.15s;
+    }
+    .grade-section-tab.active {
+      background: var(--primary); color: white; border-color: var(--primary);
+    }
+    .grade-section-tab:hover:not(.active) { background: var(--primary-pale); color: var(--primary); }
+
+    /* 成績輸入頁頭部固定 */
+    .grade-topbar {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+      padding: 12px 16px; background: white;
+      border: 1px solid var(--gray-200); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      position: sticky; top: 0; z-index: 10;
+    }
+
+    /* class chip for grade & roster pages */
+    .class-chip-sm {
+      border: 1.5px solid var(--gray-200);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: white;
+      color: var(--gray-600);
+      transition: all 0.12s;
+    }
+    .class-chip-sm:hover { border-color: var(--primary-light); color: var(--primary); background: var(--primary-pale); }
+    .class-chip-sm.active { border-color: var(--primary); color: white; background: var(--primary); }
+    .class-chip-sm.has-data { border-color: var(--success); color: var(--success); }
+    .class-chip-sm.has-data.active { background: var(--success); color: white; }
 
     /* 快速匯入 */
     .import-area {
@@ -554,47 +675,61 @@
 
       <!-- Roster Management -->
       <div id="page-roster" style="display:none">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <label class="form-label" style="margin:0">選擇班級</label>
-            <select class="form-control" id="roster-class-select" style="width:auto;display:inline-block;margin-left:10px" onchange="loadRoster()">
-              <option value="">-- 選擇班級 --</option>
-            </select>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-outline btn-sm" onclick="showModal('roster-modal')">📋 快速匯入</button>
-            <button class="btn btn-primary btn-sm" onclick="showModal('add-student-modal')">+ 新增學生</button>
-          </div>
+        <!-- Grade filter bar -->
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
+          <span style="font-size:0.78rem;color:var(--gray-400);font-weight:600;margin-right:4px">年級：</span>
+          <button class="btn btn-primary btn-sm" id="roster-grade-btn-0" onclick="filterRosterGrade(0)">全部</button>
+          <button class="btn btn-ghost btn-sm" id="roster-grade-btn-1" onclick="filterRosterGrade(1)">一年級</button>
+          <button class="btn btn-ghost btn-sm" id="roster-grade-btn-2" onclick="filterRosterGrade(2)">二年級</button>
+          <button class="btn btn-ghost btn-sm" id="roster-grade-btn-3" onclick="filterRosterGrade(3)">三年級</button>
+          <button class="btn btn-ghost btn-sm" id="roster-grade-btn-4" onclick="filterRosterGrade(4)">四年級</button>
+          <button class="btn btn-ghost btn-sm" id="roster-grade-btn-5" onclick="filterRosterGrade(5)">五年級</button>
+          <button class="btn btn-ghost btn-sm" id="roster-grade-btn-6" onclick="filterRosterGrade(6)">六年級</button>
         </div>
-        <div class="card">
-          <div class="card-body" id="roster-table-wrap">
-            <div class="empty-state"><div class="icon">👥</div><p>請先選擇班級</p></div>
+        <div id="roster-class-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
+
+        <div id="roster-panel" style="display:none">
+          <div class="flex items-center justify-between mb-3">
+            <div style="font-size:1.05rem;font-weight:700;color:var(--primary)">
+              <span id="roster-selected-class-label"></span>班 學生名單
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-outline btn-sm" onclick="showModal('roster-modal')">📋 快速匯入</button>
+              <button class="btn btn-primary btn-sm" onclick="showModal('add-student-modal')">+ 新增學生</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-body" id="roster-table-wrap">
+              <div class="empty-state"><div class="icon">👥</div><p>請先選擇班級</p></div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Grades Input -->
       <div id="page-grades" style="display:none">
-        <div class="panel-grid">
-          <div>
-            <div class="card">
-              <div class="card-header"><div class="card-title">選擇班級與科目</div></div>
-              <div class="card-body">
-                <div class="form-group">
-                  <label class="form-label">班級</label>
-                  <select class="form-control" id="grade-class-select" onchange="loadGradeSubjects()">
-                    <option value="">-- 選擇 --</option>
-                  </select>
-                </div>
-                <div id="grade-subject-list" class="subject-list"></div>
-              </div>
-            </div>
-          </div>
-          <div>
-            <div id="grade-input-area">
-              <div class="empty-state"><div class="icon">📝</div><p>請選擇左側班級與科目</p></div>
-            </div>
-          </div>
+        <!-- Class chips for grade selection -->
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center">
+          <span style="font-size:0.78rem;color:var(--gray-400);font-weight:600;margin-right:4px">年級：</span>
+          <button class="btn btn-primary btn-sm" id="grade-grade-btn-0" onclick="filterGradePageGrade(0)">全部</button>
+          <button class="btn btn-ghost btn-sm" id="grade-grade-btn-1" onclick="filterGradePageGrade(1)">一年級</button>
+          <button class="btn btn-ghost btn-sm" id="grade-grade-btn-2" onclick="filterGradePageGrade(2)">二年級</button>
+          <button class="btn btn-ghost btn-sm" id="grade-grade-btn-3" onclick="filterGradePageGrade(3)">三年級</button>
+          <button class="btn btn-ghost btn-sm" id="grade-grade-btn-4" onclick="filterGradePageGrade(4)">四年級</button>
+          <button class="btn btn-ghost btn-sm" id="grade-grade-btn-5" onclick="filterGradePageGrade(5)">五年級</button>
+          <button class="btn btn-ghost btn-sm" id="grade-grade-btn-6" onclick="filterGradePageGrade(6)">六年級</button>
+        </div>
+        <div id="grade-class-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
+
+        <!-- Subject list (appears after class selected) -->
+        <div id="grade-subject-panel" style="display:none;margin-bottom:14px">
+          <div style="font-size:0.78rem;color:var(--gray-400);font-weight:600;margin-bottom:8px">選擇科目</div>
+          <div id="grade-subject-list" class="subject-list"></div>
+        </div>
+
+        <!-- Grade input area (appears after subject selected) -->
+        <div id="grade-input-area">
+          <div class="empty-state"><div class="icon">📝</div><p>請選擇班級與科目</p></div>
         </div>
       </div>
 
@@ -796,36 +931,165 @@ function renderDashboard() {
   const listEl = document.getElementById('my-assignments-list');
   if (myAssignments.length === 0) {
     listEl.innerHTML = `<div class="empty-state"><div class="icon">📚</div><p>尚未設定任課班級，請點選「設定任課」</p></div>`;
-    return;
+  } else {
+    let html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+    const classGroups = {};
+    myAssignments.forEach(a => {
+      if (!classGroups[a.classId]) classGroups[a.classId] = [];
+      if (a.subjectId) classGroups[a.classId].push(a.subjectName + (a.hours > 1 ? `(${a.hours}節)` : ''));
+    });
+    for (const [cls, subs] of Object.entries(classGroups)) {
+      html += `<div class="card" style="padding:12px;min-width:160px">
+        <div style="font-weight:700;color:var(--primary);margin-bottom:6px">${cls}班</div>
+        <div style="font-size:0.8rem;color:var(--gray-600)">${subs.length > 0 ? subs.join('、') : '（僅導師）'}</div>
+      </div>`;
+    }
+    html += '</div>';
+    listEl.innerHTML = html;
   }
 
-  let html = '<div style="display:flex;flex-wrap:wrap;gap:8px">';
-  const classGroups = {};
-  myAssignments.forEach(a => {
-    if (!classGroups[a.classId]) classGroups[a.classId] = [];
-    if (a.subjectId) classGroups[a.classId].push(a.subjectName + (a.hours > 1 ? `(${a.hours}節)` : ''));
+  // Render roster class chips
+  renderClassChips('roster-class-chips', classes, (cls) => {
+    document.getElementById('roster-selected-class-label').textContent = cls;
+    document.getElementById('roster-panel').style.display = 'block';
+    // Update hidden select value for existing code
+    loadRosterForClass(cls);
   });
-  for (const [cls, subs] of Object.entries(classGroups)) {
-    html += `<div class="card" style="padding:12px;min-width:160px">
-      <div style="font-weight:700;color:var(--primary);margin-bottom:6px">${cls}班</div>
-      <div style="font-size:0.8rem;color:var(--gray-600)">${subs.length > 0 ? subs.join('、') : '（僅導師）'}</div>
-    </div>`;
-  }
-  html += '</div>';
-  listEl.innerHTML = html;
 
-  // Update grade class select
-  const sel = document.getElementById('grade-class-select');
-  const rosterSel = document.getElementById('roster-class-select');
-  sel.innerHTML = '<option value="">-- 選擇 --</option>';
-  rosterSel.innerHTML = '<option value="">-- 選擇班級 --</option>';
-  classes.forEach(c => {
-    sel.innerHTML += `<option value="${c}">${c}班</option>`;
-    rosterSel.innerHTML += `<option value="${c}">${c}班</option>`;
+  // Render grade class chips
+  renderClassChips('grade-class-chips', classes, (cls) => {
+    currentGradeClass = cls;
+    loadGradeSubjectsForClass(cls);
   });
 }
 
-// ===== FIRST LOGIN =====
+let rosterCurrentClass = null;
+
+function renderClassChips(containerId, classes, onSelect) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  if (classes.length === 0) {
+    container.innerHTML = '<span class="text-sm text-muted">尚未設定任課班級</span>';
+    return;
+  }
+  // Store all chips for grade filtering
+  const chips = [];
+  classes.forEach(cls => {
+    const chip = document.createElement('button');
+    chip.className = 'class-chip-sm';
+    chip.textContent = cls + '班';
+    chip.dataset.class = cls;
+    chip.dataset.grade = getGrade(cls);
+    chip.onclick = () => {
+      container.querySelectorAll('.class-chip-sm').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      onSelect(cls);
+    };
+    container.appendChild(chip);
+    chips.push(chip);
+  });
+  container._chips = chips;
+}
+
+// ===== GRADE/ROSTER PAGE FILTER BUTTONS =====
+window.filterRosterGrade = function(grade) {
+  [0,1,2,3,4,5,6].forEach(g => {
+    const btn = document.getElementById(`roster-grade-btn-${g}`);
+    if (btn) btn.className = g === grade ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  });
+  const chips = document.getElementById('roster-class-chips')?._chips || [];
+  chips.forEach(chip => {
+    chip.style.display = (grade === 0 || parseInt(chip.dataset.grade) === grade) ? '' : 'none';
+  });
+};
+
+window.filterGradePageGrade = function(grade) {
+  [0,1,2,3,4,5,6].forEach(g => {
+    const btn = document.getElementById(`grade-grade-btn-${g}`);
+    if (btn) btn.className = g === grade ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm';
+  });
+  const chips = document.getElementById('grade-class-chips')?._chips || [];
+  chips.forEach(chip => {
+    chip.style.display = (grade === 0 || parseInt(chip.dataset.grade) === grade) ? '' : 'none';
+  });
+};
+
+// ===== ROSTER FOR CLASS =====
+async function loadRosterForClass(classId) {
+  rosterCurrentClass = classId;
+  const wrap = document.getElementById('roster-table-wrap');
+  wrap.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+
+  const q = query(collection(db, 'students'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const snap = await getDocs(q);
+  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => a.seatNo - b.seatNo);
+
+  if (students.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><div class="icon">👥</div>
+      <p>尚無學生資料</p>
+      <button class="btn btn-primary mt-3" onclick="showModal('roster-modal')">📋 快速匯入名單</button>
+    </div>`;
+    return;
+  }
+
+  let html = `<div class="table-wrapper"><table>
+    <thead><tr><th>座號</th><th>學號</th><th>姓名</th><th>特殊標記</th><th>綁定帳號</th><th>操作</th></tr></thead>
+    <tbody>`;
+  const tagMap = { skip:'跳級', self:'自學', special:'特教' };
+  const tagClass = { skip:'tag-skip', self:'tag-self', special:'tag-special' };
+  for (const s of students) {
+    const tagHtml = s.specialMark ? `<span class="tag ${tagClass[s.specialMark]}">${tagMap[s.specialMark]}</span>` : '—';
+    html += `<tr>
+      <td>${s.seatNo.toString().padStart(2,'0')}</td>
+      <td>${s.studentId || '—'}</td>
+      <td class="td-name">${s.name}</td>
+      <td>${tagHtml}</td>
+      <td><span class="text-xs text-muted">${s.boundEmail || '未綁定'}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="openSpecialModal('${s.id}','${s.name}','${classId}')">標記</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}','${s.name}')">刪除</button>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  wrap.innerHTML = html;
+}
+
+// ===== GRADE SUBJECTS FOR CLASS =====
+async function loadGradeSubjectsForClass(classId) {
+  document.getElementById('grade-subject-panel').style.display = 'block';
+  document.getElementById('grade-input-area').innerHTML =
+    '<div class="empty-state"><div class="icon">📝</div><p>請選擇科目</p></div>';
+
+  const mySubjects = myAssignments.filter(a => a.classId === classId && a.subjectId);
+  const listEl = document.getElementById('grade-subject-list');
+
+  if (mySubjects.length === 0) {
+    listEl.innerHTML = `<div class="text-sm text-muted">此班級尚無任課科目，請先至「設定任課」設定</div>`;
+    return;
+  }
+
+  let html = '';
+  for (const s of mySubjects) {
+    const lockSnap = await getDoc(doc(db, 'gradeLocks', `${currentSemester.year}-${currentSemester.semester}-${classId}-${s.subjectId}`));
+    const locked = lockSnap.exists() && lockSnap.data().locked;
+    html += `<div class="subject-row ${locked ? 'locked' : 'unlocked'}" onclick="openGradeInput('${s.classId}','${s.subjectId}','${s.subjectName}',${s.hours||1})" style="cursor:pointer">
+      <div class="subject-info">
+        <div class="subject-name">${s.subjectName}${s.hours > 1 ? `(${s.hours}節)` : ''}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="light-dot ${locked ? 'light-green' : 'light-red'}"></span>
+        <span class="text-xs ${locked ? 'tag-locked' : ''}">${locked ? '已鎖定' : '未鎖定'}</span>
+      </div>
+    </div>`;
+  }
+  listEl.innerHTML = html;
+}
 function populateFirstLoginModal() {
   const sel = document.getElementById('homeroom-class-select');
   sel.innerHTML = '<option value="">請選擇班級</option>';
@@ -1005,46 +1269,9 @@ window.toggleBindSubject = window.toggleChipBind;
 
 // ===== ROSTER =====
 window.loadRoster = async function() {
-  const classId = document.getElementById('roster-class-select').value;
+  const classId = rosterCurrentClass || document.getElementById('roster-class-select')?.value;
   if (!classId) return;
-  const wrap = document.getElementById('roster-table-wrap');
-  wrap.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
-
-  const q = query(collection(db, 'students'),
-    where('classId', '==', classId),
-    where('semesterYear', '==', currentSemester.year),
-    where('semesterNum', '==', currentSemester.semester),
-  );
-  const snap = await getDocs(q);
-  const students = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => a.seatNo - b.seatNo);
-
-  if (students.length === 0) {
-    wrap.innerHTML = `<div class="empty-state"><div class="icon">👥</div><p>尚無學生資料<br><small>請使用上方「快速匯入」或「新增學生」</small></p></div>`;
-    return;
-  }
-
-  let html = `<div class="table-wrapper"><table>
-    <thead><tr><th>座號</th><th>學號</th><th>姓名</th><th>特殊標記</th><th>綁定帳號</th><th>操作</th></tr></thead>
-    <tbody>`;
-  for (const s of students) {
-    const tagMap = { skip:'跳級', self:'自學', special:'特教' };
-    const tagClass = { skip:'tag-skip', self:'tag-self', special:'tag-special' };
-    const tagHtml = s.specialMark ? `<span class="tag ${tagClass[s.specialMark]}">${tagMap[s.specialMark]}</span>` : '—';
-    html += `<tr>
-      <td>${s.seatNo.toString().padStart(2,'0')}</td>
-      <td>${s.studentId || '—'}</td>
-      <td class="td-name">${s.name}</td>
-      <td>${tagHtml}</td>
-      <td><span class="text-xs text-muted">${s.boundEmail || '未綁定'}</span></td>
-      <td>
-        <button class="btn btn-ghost btn-sm" onclick="openSpecialModal('${s.id}','${s.name}','${classId}')">標記</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}','${s.name}')">刪除</button>
-      </td>
-    </tr>`;
-  }
-  html += `</tbody></table></div>`;
-  wrap.innerHTML = html;
+  loadRosterForClass(classId);
 };
 
 window.parseImport = function() {
@@ -1211,6 +1438,292 @@ window.loadGradeSubjects = async function() {
 };
 
 window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
+  currentGradeClass = classId;
+  currentGradeSubject = { id: subjectId, name: subjectName, hours };
+
+  const area = document.getElementById('grade-input-area');
+  area.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
+
+  // Scroll to input area
+  setTimeout(() => area.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+  // Load students
+  const studentsQ = query(collection(db, 'students'),
+    where('classId', '==', classId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester));
+  const studentsSnap = await getDocs(studentsQ);
+  const allStudents = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => a.seatNo - b.seatNo)
+    .filter(s => s.specialMark !== 'self'); // exclude 自學生
+
+  const wId = `${currentSemester.year}-${currentSemester.semester}-${classId}-${subjectId}`;
+
+  // Load weights
+  const wSnap = await getDoc(doc(db, 'gradeWeights', wId));
+  const weights = wSnap.exists() ? wSnap.data() : { w1: 25, w2: 25, w3: 25, w4: 25 };
+
+  // Load grade items
+  const items1Snap = await getDocs(query(collection(db, 'gradeItems'), where('key', '==', `${wId}-1`)));
+  const items2Snap = await getDocs(query(collection(db, 'gradeItems'), where('key', '==', `${wId}-2`)));
+  const items1 = items1Snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+  const items2 = items2Snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  // Load existing grades
+  const gradesSnap = await getDocs(query(collection(db, 'grades'),
+    where('classId', '==', classId),
+    where('subjectId', '==', subjectId),
+    where('semesterYear', '==', currentSemester.year),
+    where('semesterNum', '==', currentSemester.semester)));
+  const gradesMap = {};
+  gradesSnap.docs.forEach(d => {
+    const gd = d.data();
+    gradesMap[`${gd.studentId}-${gd.section}-${gd.item}`] = { id: d.id, score: gd.score };
+  });
+
+  // Load lock status
+  const lockSnap = await getDoc(doc(db, 'gradeLocks', wId));
+  const locked = lockSnap.exists() && lockSnap.data().locked;
+
+  const skipStudentIds = new Set(allStudents.filter(s => s.specialMark === 'skip' && s.skipSubjects?.includes(subjectId)).map(s => s.id));
+
+  window._currentWeights = weights;
+  window._currentWId = wId;
+
+  // Build sections config
+  const sections = [
+    { key: '1', label: '第一次定期前成績', shortLabel: '平時1', items: items1.length > 0 ? items1 : [{ id: 'main', name: '成績', weight: 100 }], isExam: false, w: weights.w1 },
+    { key: '2', label: '第二次定期前成績', shortLabel: '平時2', items: items2.length > 0 ? items2 : [{ id: 'main', name: '成績', weight: 100 }], isExam: false, w: weights.w2 },
+    { key: 'exam1', label: '第一次定期成績', shortLabel: '定期1', items: [{ id: 'single', name: '定期1', weight: 100 }], isExam: true, w: weights.w3 },
+    { key: 'exam2', label: '第二次定期成績', shortLabel: '定期2', items: [{ id: 'single', name: '定期2', weight: 100 }], isExam: true, w: weights.w4 },
+  ].filter(s => s.w > 0);
+
+  // ---- Build HTML ----
+  const lockLabel = locked
+    ? `<span class="light-dot light-green"></span> 已鎖定`
+    : `<span class="light-dot light-red"></span> 未鎖定（非最終成績）`;
+
+  // Tabs
+  let tabsHtml = '<div class="grade-section-tabs">';
+  sections.forEach((sec, i) => {
+    tabsHtml += `<div class="grade-section-tab ${i === 0 ? 'active' : ''}" 
+      onclick="switchGradeTab(${i})" id="grade-tab-${i}">
+      ${sec.label}<small style="display:block;font-size:0.65em;opacity:0.7">（${sec.w}%）</small>
+    </div>`;
+  });
+  tabsHtml += '</div>';
+
+  let sectionsHtml = '';
+  sections.forEach((sec, tabIdx) => {
+    const students = allStudents;
+
+    // Build column list: items + (subtotal if multi) + exam cols come later
+    const cols = [];
+    sec.items.forEach((it, idx) => {
+      cols.push({ key: `${sec.key}-${it.id}`, label: it.name, sublabel: it.weight !== 100 ? `${it.weight}%` : '', section: sec.key, item: it.id, isExam: sec.isExam });
+    });
+    const showSubtotal = sec.items.length > 1;
+
+    // Table HTML
+    let tableHtml = `<div class="grade-table-scroll">
+      <table class="excel-grade-table" id="grade-excel-${tabIdx}">
+        <thead>
+          <tr>
+            <th class="col-sticky col-seat">座號</th>
+            <th class="col-sticky col-name">姓名</th>`;
+
+    cols.forEach((col, ci) => {
+      const isExamCls = sec.isExam ? ' exam-col' : '';
+      tableHtml += `<th class="${isExamCls}" style="${ci === 0 && !sec.isExam ? 'border-left:2px solid rgba(255,255,255,0.3)' : ''}">
+        ${col.label}${col.sublabel ? `<br><small style="opacity:0.7">${col.sublabel}</small>` : ''}
+      </th>`;
+    });
+
+    if (showSubtotal) {
+      tableHtml += `<th class="exam-col">小計</th>`;
+    }
+    tableHtml += `<th class="total-col">個人學期總分</th></tr></thead><tbody>`;
+
+    let allStudentTotals = [];
+
+    students.forEach((st, rowIdx) => {
+      const isSkip = skipStudentIds.has(st.id);
+      const tagHtml = st.specialMark ? `<span class="tag tag-${st.specialMark}" style="font-size:0.62rem;margin-left:4px">${{skip:'跳',special:'特'}[st.specialMark]||''}</span>` : '';
+
+      tableHtml += `<tr>
+        <td class="col-seat">${st.seatNo.toString().padStart(2,'0')}</td>
+        <td class="col-name">${st.name}${tagHtml}</td>`;
+
+      let sectionScore = null;
+      if (isSkip) {
+        cols.forEach(() => { tableHtml += `<td><span style="color:var(--gray-300)">—</span></td>`; });
+        if (showSubtotal) tableHtml += `<td>—</td>`;
+      } else {
+        let itemScores = [];
+        cols.forEach((col, ci) => {
+          const gKey = `${st.id}-${col.section}-${col.item}`;
+          const existing = gradesMap[gKey];
+          const val = existing?.score ?? '';
+          const isExamCls = sec.isExam ? ' exam-col' : '';
+          const inputId = `gi-${tabIdx}-${rowIdx}-${ci}`;
+          tableHtml += `<td class="${isExamCls}">
+            <input type="text" class="grade-cell-input" id="${inputId}"
+              data-sid="${st.id}" data-section="${col.section}" data-item="${col.item}"
+              data-tabidx="${tabIdx}" data-row="${rowIdx}" data-col="${ci}"
+              value="${val}" ${locked ? 'disabled' : ''}
+              oninput="handleGradeCellInput(this)"
+              onkeydown="handleGradeCellKey(event,this)"
+              onchange="saveGrade(this,'${classId}','${subjectId}','${wId}')">
+          </td>`;
+          if (val !== '') itemScores.push({ score: parseFloat(val), weight: sec.items[ci]?.weight || (100 / sec.items.length) });
+        });
+
+        if (showSubtotal) {
+          const sub = itemScores.length === sec.items.length
+            ? itemScores.reduce((s, x) => s + x.score * x.weight / 100, 0) : null;
+          tableHtml += `<td class="exam-col" id="sub-${tabIdx}-${st.id}">${sub !== null ? sub.toFixed(1) : ''}</td>`;
+          if (sub !== null) sectionScore = sub;
+        } else if (itemScores.length > 0) {
+          sectionScore = itemScores[0].score;
+        }
+      }
+
+      // Compute overall semester total (all sections)
+      const total = computeStudentTotal(st.id, gradesMap, sections, allStudents);
+      allStudentTotals.push(total);
+      tableHtml += `<td class="total-col" id="total-${tabIdx}-${st.id}">${total !== null ? total.toFixed(1) : ''}</td></tr>`;
+    });
+
+    // Average row
+    const validTotals = allStudentTotals.filter(t => t !== null);
+    const avg = validTotals.length > 0 ? (validTotals.reduce((a,b)=>a+b,0)/validTotals.length).toFixed(1) : '—';
+    tableHtml += `<tr class="avg-row">
+      <td class="col-seat">—</td>
+      <td class="col-name">全班平均</td>`;
+    cols.forEach(() => tableHtml += `<td>—</td>`);
+    if (showSubtotal) tableHtml += `<td>—</td>`;
+    tableHtml += `<td class="total-col">${avg}</td></tr>`;
+
+    tableHtml += `</tbody></table></div>`;
+
+    // Section note
+    const noteHtml = !sec.isExam && sec.items.length === 1
+      ? `<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="openItemsModal('${wId}','${sec.key}','${sec.label}')">⚙️ 設定細項（作業/課堂等）</button></div>`
+      : !sec.isExam ? `<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="openItemsModal('${wId}','${sec.key}','${sec.label}')">⚙️ 編輯細項</button></div>` : '';
+
+    sectionsHtml += `<div id="grade-section-${tabIdx}" style="display:${tabIdx === 0 ? 'block' : 'none'}">
+      ${tableHtml}${noteHtml}
+    </div>`;
+  });
+
+  area.innerHTML = `
+    <div class="grade-topbar">
+      <div style="font-weight:700;font-size:1rem;color:var(--primary)">${classId}班 · ${subjectName}</div>
+      <div class="flex items-center gap-2 text-sm">${lockLabel}</div>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="openWeightModal()">⚖️ 設定權重</button>
+        ${!locked
+          ? `<button class="btn btn-success btn-sm" onclick="lockGrades('${wId}')">🔒 期末鎖定</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="unlockGrades('${wId}')">🔓 解除鎖定</button>`}
+      </div>
+    </div>
+    <div style="padding:0 0 4px;background:white;border-left:1px solid var(--gray-200);border-right:1px solid var(--gray-200)">
+      <div style="padding:8px 16px 0">
+        <span style="font-size:0.78rem;color:var(--gray-400)">權重：</span>
+        ${sections.map(s => `<span class="weight-chip">${s.shortLabel}：${s.w}%</span>`).join('')}
+      </div>
+      ${tabsHtml}
+    </div>
+    ${sectionsHtml}
+  `;
+};
+
+// ===== COMPUTE STUDENT TOTAL =====
+function computeStudentTotal(studentId, gradesMap, sections, students) {
+  let total = 0;
+  let totalWeight = 0;
+  for (const sec of sections) {
+    const itemList = sec.items;
+    let itemScores = [];
+    for (const it of itemList) {
+      const gKey = `${studentId}-${sec.key}-${it.id}`;
+      const existing = gradesMap[gKey];
+      if (existing?.score !== undefined && existing.score !== '') {
+        itemScores.push({ score: parseFloat(existing.score), weight: it.weight || (100 / itemList.length) });
+      }
+    }
+    if (itemScores.length === itemList.length) {
+      const secScore = itemScores.reduce((s, x) => s + x.score * x.weight / 100, 0);
+      total += secScore * sec.w / 100;
+      totalWeight += sec.w;
+    }
+  }
+  return totalWeight === sections.reduce((s,sec)=>s+sec.w,0) ? total : null;
+}
+
+// ===== SWITCH GRADE TAB =====
+window.switchGradeTab = function(idx) {
+  document.querySelectorAll('.grade-section-tab').forEach((t, i) => {
+    t.classList.toggle('active', i === idx);
+  });
+  document.querySelectorAll('[id^="grade-section-"]').forEach((el, i) => {
+    el.style.display = i === idx ? 'block' : 'none';
+  });
+};
+
+// ===== HANDLE GRADE CELL INPUT (* → 100) =====
+window.handleGradeCellInput = function(input) {
+  if (input.value === '*') {
+    input.value = '100';
+    input.dispatchEvent(new Event('change'));
+    return;
+  }
+  const val = parseFloat(input.value);
+  if (input.value !== '' && (isNaN(val) || val < 0 || val > 100)) {
+    input.classList.add('invalid');
+  } else {
+    input.classList.remove('invalid');
+    // Update subtotal and total in real-time
+    updateCellTotals(input);
+  }
+};
+
+// ===== KEYBOARD NAV (Tab = next cell, Enter = next row same col) =====
+window.handleGradeCellKey = function(e, input) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const tabIdx = input.dataset.tabidx;
+    const row = parseInt(input.dataset.row);
+    const col = parseInt(input.dataset.col);
+    const next = document.getElementById(`gi-${tabIdx}-${row+1}-${col}`);
+    if (next) next.focus();
+  }
+  // Tab = default browser behavior (moves right, which is what we want)
+};
+
+// ===== UPDATE TOTALS AFTER INPUT =====
+function updateCellTotals(input) {
+  const tabIdx = input.dataset.tabidx;
+  const sid = input.dataset.sid;
+  if (!tabIdx || !sid) return;
+
+  // Re-read all inputs in this row/tab to compute subtotal
+  const table = document.getElementById(`grade-excel-${tabIdx}`);
+  if (!table) return;
+  const rowInputs = table.querySelectorAll(`input[data-sid="${sid}"]`);
+  let scores = [];
+  rowInputs.forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (!isNaN(v) && v >= 0 && v <= 100) scores.push(v);
+  });
+
+  const subCell = document.getElementById(`sub-${tabIdx}-${sid}`);
+  if (subCell && scores.length === rowInputs.length && rowInputs.length > 1) {
+    subCell.textContent = (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
+  }
+}
   currentGradeClass = classId;
   currentGradeSubject = { id: subjectId, name: subjectName, hours };
 
@@ -1396,12 +1909,18 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
 };
 
 window.saveGrade = async function(input, classId, subjectId, wId) {
+  // Handle * shortcut
+  if (input.value === '*') { input.value = '100'; }
+
   const score = parseFloat(input.value);
-  if (isNaN(score) || score < 0 || score > 100) {
-    input.style.borderColor = 'var(--danger)';
+  if (input.value !== '' && (isNaN(score) || score < 0 || score > 100)) {
+    input.classList.add('invalid');
+    showToast('成績須介於 0–100', 'error');
     return;
   }
-  input.style.borderColor = '';
+  input.classList.remove('invalid');
+  if (input.value === '') return; // allow clearing
+
   const sid = input.dataset.sid;
   const section = input.dataset.section;
   const item = input.dataset.item;
@@ -1418,7 +1937,7 @@ window.lockGrades = async function(wId) {
   if (!confirm('確定要鎖定此科目的期末成績嗎？鎖定後學生將看到「已鎖定」狀態。')) return;
   await setDoc(doc(db, 'gradeLocks', wId), { locked: true, lockedAt: new Date(), lockedBy: currentUser.email });
   showToast('期末成績已鎖定', 'success');
-  loadGradeSubjects();
+  loadGradeSubjectsForClass(currentGradeClass);
   openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
 };
 
@@ -1426,7 +1945,7 @@ window.unlockGrades = async function(wId) {
   if (!confirm('解除鎖定後成績可再次修改，確定嗎？')) return;
   await setDoc(doc(db, 'gradeLocks', wId), { locked: false, unlockedAt: new Date() });
   showToast('已解除鎖定', 'info');
-  loadGradeSubjects();
+  loadGradeSubjectsForClass(currentGradeClass);
   openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
 };
 
