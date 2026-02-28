@@ -1488,8 +1488,7 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
 
   window._currentWeights = weights;
   window._currentWId = wId;
-  window._currentTabs = tabs;       // store for live total update
-  window._currentGradesMap = gradesMap; // live mirror, updated on save
+  window._currentGradesMap = gradesMap;
 
   // All 4 raw sections (for total computation) — use resolvedItems
   const allSections = [
@@ -1500,8 +1499,6 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
   ];
 
   // Merged tab config:
-  // Tab 0: 平時1 items + exam1 (merged)
-  // Tab 1: 平時2 items + exam2 (merged)
   const tabs = [
     { label: '第一次平時與定期成績', shortLabel: '第一次',
       regKey: '1',    regItems: resolvedItems1, regW: weights.w1,
@@ -1510,6 +1507,8 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
       regKey: '2',    regItems: resolvedItems2, regW: weights.w2,
       examKey: 'exam2', examW: weights.w4 },
   ];
+
+  window._currentTabs = tabs;  // after declaration
 
   const lockLabel = locked
     ? `<span class="light-dot light-green"></span> 已鎖定`
