@@ -494,18 +494,47 @@
       <!-- Reports -->
       <div id="page-reports" style="display:none">
         <div class="card mb-4">
-          <div class="card-header"><div class="card-title">📊 成績報表匯出</div></div>
+          <div class="card-header"><div class="card-title">📊 全校成績報表匯出</div></div>
           <div class="card-body">
-            <div class="form-group" style="max-width:200px">
-              <label class="form-label">選擇班級（留空=全校）</label>
-              <select class="form-control" id="report-class">
-                <option value="">全校</option>
-              </select>
+            <!-- Scope selector -->
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-end">
+              <div class="form-group" style="margin:0;min-width:140px">
+                <label class="form-label">年級篩選</label>
+                <select class="form-control" id="report-grade" onchange="updateReportClassOptions()">
+                  <option value="">全部年級</option>
+                  <option value="1">一年級</option><option value="2">二年級</option>
+                  <option value="3">三年級</option><option value="4">四年級</option>
+                  <option value="5">五年級</option><option value="6">六年級</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;min-width:140px">
+                <label class="form-label">班級篩選（空=全部）</label>
+                <select class="form-control" id="report-class">
+                  <option value="">全部班級</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin:0;min-width:160px">
+                <label class="form-label">報表類型</label>
+                <select class="form-control" id="report-type">
+                  <option value="scores">各科學期總分</option>
+                  <option value="ranking">班級排名總表</option>
+                  <option value="avg">各科班平均比較</option>
+                </select>
+              </div>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-              <button class="btn btn-primary" onclick="exportReportExcel()">📥 匯出 Excel</button>
-              <button class="btn btn-outline" onclick="exportReportPDF()">📄 匯出 PDF</button>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-primary" onclick="generateReport()">🔄 產生報表預覽</button>
+              <button class="btn btn-outline" id="report-excel-btn" style="display:none" onclick="downloadReportExcel()">📥 下載 Excel (CSV)</button>
+              <button class="btn btn-outline" id="report-pdf-btn" style="display:none" onclick="downloadReportPDF()">🖨️ 列印 / PDF</button>
             </div>
+          </div>
+        </div>
+        <div id="report-preview-area" style="display:none">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="report-preview-title">報表預覽</div>
+            </div>
+            <div class="card-body" id="report-preview-content" style="overflow-x:auto"></div>
           </div>
         </div>
       </div>
@@ -1291,8 +1320,211 @@ window.exportSkipList = function() {
 };
 
 // ===== REPORTS =====
-window.exportReportExcel = function() { showToast('Excel 報表匯出功能開發中', 'info'); };
-window.exportReportPDF = function() { window.print(); };
+let _reportData = null;
+
+window.updateReportClassOptions = function() {
+  const grade = parseInt(document.getElementById('report-grade').value)||0;
+  const sel = document.getElementById('report-class');
+  sel.innerHTML = '<option value="">全部班級</option>';
+  ALL_CLASSES.filter(c => !grade || Math.ceil(parseInt(c)/100)===grade || (parseInt(c)>=grade*100&&parseInt(c)<(grade+1)*100))
+    .forEach(c => sel.innerHTML += `<option value="${c}">${c}班</option>`);
+};
+
+function getAdminSubjectsForClass(classId) {
+  const grade = Math.ceil(parseInt(classId)/100);
+  const key = grade<=2?1:grade<=4?3:5;
+  return SUBJECTS_BY_GRADE[key].filter(s=>!s.id.startsWith('flex'));
+}
+
+async function adminComputeFinalScore(studentId, classId, subjectId) {
+  const wId = `${currentSemester.year}-${currentSemester.semester}-${classId}-${subjectId}`;
+  const [wSnap, gradesSnap] = await Promise.all([
+    getDoc(doc(db,'gradeWeights',wId)),
+    getDocs(query(collection(db,'grades'),
+      where('studentId','==',studentId), where('subjectId','==',subjectId),
+      where('semesterYear','==',currentSemester.year), where('semesterNum','==',currentSemester.semester)))
+  ]);
+  if (gradesSnap.empty) return null;
+  const weights = wSnap.exists() ? wSnap.data() : {w1:25,w2:25,w3:25,w4:25};
+  const grades = {};
+  gradesSnap.docs.forEach(d=>{const g=d.data(); if(!grades[g.section])grades[g.section]=[]; grades[g.section].push(g.score);});
+  let total=0,tw=0;
+  const sw = {'1':weights.w1,'2':weights.w2,'exam1':weights.w3,'exam2':weights.w4};
+  for(const[sec,w]of Object.entries(sw)){
+    if(w===0||!grades[sec])continue;
+    total+=( grades[sec].reduce((a,b)=>a+b,0)/grades[sec].length)*w/100; tw+=w;
+  }
+  return tw===0?null:total*100/tw;
+}
+
+window.generateReport = async function() {
+  const classFilter = document.getElementById('report-class').value;
+  const gradeFilter = parseInt(document.getElementById('report-grade').value)||0;
+  const reportType = document.getElementById('report-type').value;
+  const preview = document.getElementById('report-preview-area');
+  const content = document.getElementById('report-preview-content');
+  const title = document.getElementById('report-preview-title');
+
+  content.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div><p style="margin-top:8px">正在載入全校資料，請稍候...</p></div>';
+  preview.style.display = 'block';
+  document.getElementById('report-excel-btn').style.display = 'none';
+  document.getElementById('report-pdf-btn').style.display = 'none';
+
+  // Determine classes to process
+  const targetClasses = classFilter ? [classFilter]
+    : ALL_CLASSES.filter(c => !gradeFilter || (Math.floor((parseInt(c)-1)/100)+1)===gradeFilter);
+
+  const allData = []; // [{classId, students:[{st,scores,avg,rank}]}]
+
+  for (const classId of targetClasses) {
+    const studentsSnap = await getDocs(query(collection(db,'students'),
+      where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+      where('semesterNum','==',currentSemester.semester)));
+    const students = studentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>a.seatNo-b.seatNo).filter(s=>s.specialMark!=='self');
+    if(students.length===0) continue;
+
+    const subjects = getAdminSubjectsForClass(classId);
+    const classRows = [];
+    for(const st of students){
+      if(st.specialMark==='skip') { classRows.push({st,scores:[],avg:null,rank:null}); continue; }
+      const scores=[];
+      for(const subj of subjects) scores.push({subjectId:subj.id,name:subj.name,score:await adminComputeFinalScore(st.id,classId,subj.id)});
+      const valid=scores.filter(s=>s.score!==null).map(s=>s.score);
+      const avg=valid.length>0?valid.reduce((a,b)=>a+b,0)/valid.length:null;
+      classRows.push({st,scores,avg});
+    }
+    // assign rank
+    const rankable=classRows.filter(r=>r.avg!==null).sort((a,b)=>b.avg-a.avg);
+    rankable.forEach((r,i)=>{
+      r.rank=(i>0&&r.avg===rankable[i-1].avg)?rankable[i-1].rank:i+1;
+    });
+    allData.push({classId, students:classRows, subjects:getAdminSubjectsForClass(classId)});
+  }
+
+  _reportData = {allData, reportType};
+
+  // Render preview
+  let html='', csvData=[];
+  const semLabel=`${currentSemester.year}學年度第${currentSemester.semester===1?'一':'二'}學期`;
+
+  if(reportType==='scores'||reportType==='ranking'){
+    const titleText=reportType==='ranking'?`${semLabel} 全校成績排名總表`:`${semLabel} 全校各科成績總表`;
+    title.textContent=titleText;
+    html+='';
+    for(const{classId,students,subjects}of allData){
+      const header=['班級','座號','姓名',...subjects.map(s=>s.name),'一般平均'];
+      if(reportType==='ranking') header.splice(3,0,'班級名次');
+      if(csvData.length===0) csvData.push(header);
+      html+=`<div style="margin-bottom:24px">
+        <div style="font-weight:700;font-size:0.95rem;color:var(--primary);margin-bottom:6px;padding:6px 10px;background:var(--primary-pale);border-radius:6px">${classId}班</div>
+        <div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:0.82rem">
+        <thead><tr>
+          <th style="background:#1e3a5f;color:white;padding:5px 8px;border:1px solid #999">座號</th>
+          <th style="background:#1e3a5f;color:white;padding:5px 8px;border:1px solid #999">姓名</th>
+          ${reportType==='ranking'?'<th style="background:#1e3a5f;color:white;padding:5px 8px;border:1px solid #999">名次</th>':''}
+          ${subjects.map(s=>`<th style="background:#1e3a5f;color:white;padding:5px 8px;border:1px solid #999">${s.name}</th>`).join('')}
+          <th style="background:#92400e;color:white;padding:5px 8px;border:1px solid #999">一般平均</th>
+        </tr></thead><tbody>`;
+      students.forEach(r=>{
+        const rank=reportType==='ranking'?(r.rank!=null?r.rank:'—'):'';
+        html+=`<tr>
+          <td style="text-align:center;padding:4px 6px;border:1px solid #ddd">${r.st.seatNo.toString().padStart(2,'0')}</td>
+          <td style="padding:4px 8px;border:1px solid #ddd;font-weight:600">${r.st.name}${r.st.specialMark==='skip'?'<small style="color:#999"> 跳</small>':''}</td>
+          ${reportType==='ranking'?`<td style="text-align:center;padding:4px 6px;border:1px solid #ddd;font-weight:700;color:var(--primary)">${rank}</td>`:''}
+          ${r.scores.map(s=>`<td style="text-align:center;padding:4px 6px;border:1px solid #ddd">${s.score!=null?s.score.toFixed(1):'—'}</td>`).join('')}
+          <td style="text-align:center;padding:4px 6px;border:1px solid #ddd;font-weight:700;color:#92400e">${r.avg!=null?r.avg.toFixed(2):'—'}</td>
+        </tr>`;
+        const row=[classId,r.st.seatNo.toString().padStart(2,'0'),r.st.name,...r.scores.map(s=>s.score!=null?s.score.toFixed(1):''),r.avg!=null?r.avg.toFixed(2):''];
+        if(reportType==='ranking') row.splice(3,0,r.rank??'');
+        csvData.push(row);
+      });
+      // class avg row
+      const valids=students.filter(r=>r.avg!==null).map(r=>r.avg);
+      const cAvg=valids.length>0?(valids.reduce((a,b)=>a+b,0)/valids.length).toFixed(2):'—';
+      html+=`<tr style="background:#f0f6ff;font-weight:700">
+        <td colspan="2" style="padding:4px 8px;border:1px solid #ddd">全班平均</td>
+        ${reportType==='ranking'?'<td style="border:1px solid #ddd"></td>':''}
+        ${subjects.map(()=>'<td style="border:1px solid #ddd;text-align:center">—</td>').join('')}
+        <td style="text-align:center;padding:4px 6px;border:1px solid #ddd">${cAvg}</td>
+      </tr>`;
+      html+=`</tbody></table></div></div>`;
+    }
+  } else if(reportType==='avg'){
+    // Class avg comparison per subject
+    title.textContent=`${semLabel} 各科班平均比較表`;
+    const allSubjects=allData.length>0?allData[0].subjects:[];
+    csvData.push(['班級',...allSubjects.map(s=>s.name),'總平均']);
+    html=`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:0.83rem">
+      <thead><tr>
+        <th style="background:#1e3a5f;color:white;padding:5px 10px;border:1px solid #999">班級</th>
+        ${allSubjects.map(s=>`<th style="background:#1e3a5f;color:white;padding:5px 8px;border:1px solid #999">${s.name}</th>`).join('')}
+        <th style="background:#92400e;color:white;padding:5px 8px;border:1px solid #999">總平均</th>
+      </tr></thead><tbody>`;
+    for(const{classId,students,subjects}of allData){
+      const subjAvgs=subjects.map(subj=>{
+        const vals=students.filter(r=>r.scores.length).map(r=>r.scores.find(s=>s.subjectId===subj.id)?.score).filter(v=>v!=null);
+        return vals.length>0?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+      });
+      const grandAvg=subjAvgs.filter(v=>v!=null);
+      const ga=grandAvg.length>0?(grandAvg.reduce((a,b)=>a+b,0)/grandAvg.length).toFixed(2):'—';
+      html+=`<tr>
+        <td style="padding:4px 10px;border:1px solid #ddd;font-weight:700">${classId}班</td>
+        ${subjAvgs.map(v=>`<td style="text-align:center;padding:4px 6px;border:1px solid #ddd">${v!=null?v.toFixed(2):'—'}</td>`).join('')}
+        <td style="text-align:center;padding:4px 6px;border:1px solid #ddd;font-weight:700;color:#92400e">${ga}</td>
+      </tr>`;
+      csvData.push([classId+'班',...subjAvgs.map(v=>v!=null?v.toFixed(2):''),ga]);
+    }
+    html+=`</tbody></table></div>`;
+  }
+
+  _reportData.csvData = csvData;
+  _reportData.titleText = title.textContent;
+  content.innerHTML = html || '<div class="alert alert-warning">沒有符合條件的資料</div>';
+  if(allData.length>0){
+    document.getElementById('report-excel-btn').style.display='';
+    document.getElementById('report-pdf-btn').style.display='';
+  }
+};
+
+window.downloadReportExcel = function() {
+  if(!_reportData?.csvData) return;
+  const BOM='\uFEFF';
+  const content=BOM+_reportData.csvData.map(r=>r.map(cell=>{
+    const s=String(cell??'');
+    return(s.includes(',')||s.includes('"'))?`"${s.replace(/"/g,'""')}"`  :s;
+  }).join(',')).join('\n');
+  const blob=new Blob([content],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${_reportData.titleText.replace(/\s/g,'_')}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('Excel (CSV) 已下載', 'success');
+};
+
+window.downloadReportPDF = function() {
+  const area=document.getElementById('report-preview-content');
+  const titleText=_reportData?.titleText||'全校成績報表';
+  const win=window.open('','_blank','width=1100,height=800');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><title>${titleText}</title>
+    <style>
+      @page{size:A4 landscape;margin:8mm}
+      body{font-family:'Noto Sans TC',Arial,sans-serif;font-size:8pt;margin:0}
+      h2{text-align:center;margin:0 0 10px;font-size:13pt}
+      div[style*="margin-bottom:24px"]{page-break-inside:avoid}
+    </style>
+  </head><body>
+    <h2>${titleText}</h2>${area.innerHTML}
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(),600);
+};
+
+// legacy stubs
+window.exportReportExcel = function() { generateReport(); };
+window.exportReportPDF = function() { generateReport(); };
+
 
 // ===== SEMESTER SELECTOR =====
 function initSemesterSelector() {

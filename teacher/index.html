@@ -733,11 +733,13 @@
       <!-- Class Overview (homeroom only) -->
       <div id="page-overview" style="display:none">
         <div class="card mb-4">
-          <div class="card-header">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px">
             <div class="card-title">📈 班級成績總覽</div>
-            <div style="margin-left:auto;display:flex;gap:8px">
-              <button class="btn btn-outline btn-sm" onclick="exportOverviewPDF()">匯出 PDF</button>
-              <button class="btn btn-primary btn-sm" onclick="exportOverviewExcel()">匯出 Excel</button>
+            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-outline btn-sm" onclick="exportBlankGradeSheet()">🖨️ 空白成績登錄表</button>
+              <button class="btn btn-outline btn-sm" onclick="exportBlankRosterSheet()">🖨️ 空白點名表</button>
+              <button class="btn btn-outline btn-sm" onclick="exportOverviewExcel()">⬇️ Excel 成績單</button>
+              <button class="btn btn-primary btn-sm" onclick="exportOverviewPDF()">🖨️ 列印/PDF</button>
             </div>
           </div>
           <div class="card-body">
@@ -751,13 +753,11 @@
       <!-- Ranking -->
       <div id="page-ranking" style="display:none">
         <div class="card">
-          <div class="card-header">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px">
             <div class="card-title">🏆 班級成績排名</div>
-            <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-              <select class="form-control" id="rank-sort-by" style="width:auto" onchange="renderRanking()">
-                <option value="total">依總平均排序</option>
-              </select>
-              <button class="btn btn-primary btn-sm" onclick="renderRanking()">排序</button>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-outline btn-sm" onclick="exportRankingExcel()">⬇️ Excel</button>
+              <button class="btn btn-primary btn-sm" onclick="exportRankingPDF()">🖨️ 列印/PDF</button>
             </div>
           </div>
           <div class="card-body" id="ranking-table-wrap">
@@ -2248,60 +2248,296 @@ function computeDomainAvg(scores) {
   return domainAvgs.length > 0 ? (domainAvgs.reduce((a,b)=>a+b,0)/domainAvgs.length).toFixed(2) : '—';
 }
 
-// ===== RANKING =====
+// ===== RANKING (含並列處理) =====
 async function loadRanking() {
+  if (!userData?.homeroomClass) return;
+  const classId = userData.homeroomClass;
   const wrap = document.getElementById('ranking-table-wrap');
   wrap.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
-  // Similar to overview but with rank computation
-  wrap.innerHTML = `<div class="alert alert-info">排名功能正在計算中，請稍後...</div>`;
-  // TODO: full ranking implementation
-}
 
-// ===== SEMESTER =====
-function initSemesterSelector() {
-  const sel = document.getElementById('semester-select-top');
-  sel.innerHTML = '';
-  // Generate semesters from 111-1 to current
-  for (let y = 114; y >= 111; y--) {
-    for (let s = 2; s >= 1; s--) {
-      const opt = document.createElement('option');
-      opt.value = `${y}-${s}`;
-      opt.textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
-      if (y === currentSemester.year && s === currentSemester.semester) opt.selected = true;
-      sel.appendChild(opt);
+  const grade = getGrade(classId);
+  const subjects = getSubjectsForGrade(grade).filter(s => s.domain !== 'flex');
+
+  const studentsSnap = await getDocs(query(collection(db, 'students'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const students = studentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>a.seatNo-b.seatNo).filter(s=>s.specialMark!=='self'&&s.specialMark!=='skip');
+
+  const rows = [];
+  for (const st of students) {
+    let scores = [];
+    for (const subj of subjects) {
+      const fs = await computeFinalScore(st.id, classId, subj.id);
+      scores.push({ subjectId: subj.id, name: subj.name, domain: subj.domain, score: fs });
     }
+    const valid = scores.filter(s=>s.score!==null).map(s=>s.score);
+    const avg = valid.length > 0 ? valid.reduce((a,b)=>a+b,0)/valid.length : null;
+    const dAvg = computeDomainAvg(scores.filter(s=>s.score!==null).map(s=>({score:s.score,domain:s.domain})));
+    rows.push({ st, scores, avg, domainAvg: parseFloat(dAvg)||null });
   }
+
+  // Sort desc, assign rank with tie (並列) handling
+  rows.sort((a,b)=>(b.avg??-1)-(a.avg??-1));
+  rows.forEach((r,i) => {
+    if (i > 0 && r.avg !== null && r.avg === rows[i-1].avg) r.rank = rows[i-1].rank;
+    else r.rank = i + 1;
+  });
+
+  window._rankingData = { rows, subjects, classId };
+
+  let html = `<div id="ranking-print-area"><div class="table-wrapper"><table id="ranking-table">
+    <thead><tr>
+      <th style="width:70px">班級名次</th><th style="width:52px">座號</th><th>姓名</th>
+      ${subjects.map(s=>`<th>${s.name}</th>`).join('')}
+      <th>一般平均</th><th>領域平均</th>
+    </tr></thead><tbody>`;
+
+  rows.forEach(r => {
+    const medal = r.rank===1?'🥇':r.rank===2?'🥈':r.rank===3?'🥉':'';
+    const rankDisplay = r.rank<=3
+      ? `<span style="background:${['#fbbf24','#c0c0c0','#d97706'][r.rank-1]};color:white;padding:2px 8px;border-radius:12px;font-weight:700">${medal}${r.rank}</span>`
+      : `<span style="color:var(--gray-500)">${r.rank}</span>`;
+    html += `<tr>
+      <td style="text-align:center">${rankDisplay}</td>
+      <td style="text-align:center">${r.st.seatNo.toString().padStart(2,'0')}</td>
+      <td style="text-align:left;padding-left:8px;font-weight:600">${r.st.name}</td>
+      ${r.scores.map(s=>`<td class="final-score">${s.score!==null?s.score.toFixed(1):'—'}</td>`).join('')}
+      <td class="final-score" style="font-weight:700;color:var(--primary)">${r.avg!==null?r.avg.toFixed(2):'—'}</td>
+      <td class="final-score">${r.domainAvg!==null?r.domainAvg.toFixed(2):'—'}</td>
+    </tr>`;
+  });
+
+  const validAvgs = rows.filter(r=>r.avg!==null).map(r=>r.avg);
+  const classAvg = validAvgs.length>0 ? (validAvgs.reduce((a,b)=>a+b,0)/validAvgs.length).toFixed(2) : '—';
+  html += `<tr class="avg-row"><td colspan="3">全班平均</td>
+    ${subjects.map(()=>'<td>—</td>').join('')}<td>${classAvg}</td><td>—</td>
+  </tr></tbody></table></div></div>`;
+  wrap.innerHTML = html;
 }
 
-window.changeSemester = function() {
-  const val = document.getElementById('semester-select-top').value;
-  const [y, s] = val.split('-').map(Number);
-  currentSemester = { year: y, semester: s };
-  document.getElementById('sidebar-semester').textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
-  loadMyAssignments();
+// ===== EXPORT: RANKING EXCEL (CSV) =====
+window.exportRankingExcel = function() {
+  const data = window._rankingData;
+  if (!data) { showToast('請先載入排名頁面', 'error'); return; }
+  const { rows, subjects, classId } = data;
+  const header = ['班級名次','座號','姓名',...subjects.map(s=>s.name),'一般平均','領域平均'];
+  const csvRows = [header];
+  rows.forEach(r => csvRows.push([
+    r.rank, r.st.seatNo.toString().padStart(2,'0'), r.st.name,
+    ...r.scores.map(s=>s.score!==null?s.score.toFixed(1):''),
+    r.avg!==null?r.avg.toFixed(2):'', r.domainAvg!==null?r.domainAvg.toFixed(2):''
+  ]));
+  downloadCSV(csvRows, `${classId}班_成績排名_${currentSemester.year}學年第${currentSemester.semester}學期.csv`);
+  showToast('排名 Excel 已下載', 'success');
 };
 
-// ===== EXPORT =====
-window.exportBlankRoster = function() {
-  const classId = rosterCurrentClass || (userData?.homeroomClass || '');
-  showToast('空白點名表匯出功能開發中（即將完成）', 'info');
+// ===== EXPORT: RANKING PDF =====
+window.exportRankingPDF = function() {
+  const area = document.getElementById('ranking-print-area');
+  if (!area) { showToast('請先載入排名頁面', 'error'); return; }
+  printElement(area, `${userData?.homeroomClass||''}班 成績排名　${currentSemester.year}學年第${currentSemester.semester}學期`);
 };
 
-window.exportBlankGrade = function() {
-  showToast('空白成績登錄表匯出功能開發中（即將完成）', 'info');
+// ===== EXPORT: OVERVIEW EXCEL (CSV) =====
+window.exportOverviewExcel = async function() {
+  if (!userData?.homeroomClass) return;
+  const classId = userData.homeroomClass;
+  const grade = getGrade(classId);
+  const subjects = getSubjectsForGrade(grade).filter(s=>s.domain!=='flex');
+  showToast('正在準備 Excel 資料...', 'info');
+
+  const studentsSnap = await getDocs(query(collection(db,'students'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const students = studentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>a.seatNo-b.seatNo).filter(s=>s.specialMark!=='self');
+
+  const header = ['座號','姓名',...subjects.map(s=>s.name),'一般平均','領域平均'];
+  const csvRows = [header];
+  for (const st of students) {
+    if (st.specialMark==='skip') { csvRows.push([st.seatNo.toString().padStart(2,'0'),st.name,...subjects.map(()=>'跳級'),'','']); continue; }
+    const scores = [];
+    for (const subj of subjects) scores.push({score:await computeFinalScore(st.id,classId,subj.id),domain:subj.domain});
+    const valid = scores.filter(s=>s.score!==null).map(s=>s.score);
+    const avg = valid.length>0?(valid.reduce((a,b)=>a+b,0)/valid.length).toFixed(2):'';
+    const dAvg = computeDomainAvg(scores.filter(s=>s.score!==null).map(s=>({score:s.score,domain:s.domain})));
+    csvRows.push([st.seatNo.toString().padStart(2,'0'),st.name,...scores.map(s=>s.score!==null?s.score.toFixed(1):''),avg,dAvg]);
+  }
+  downloadCSV(csvRows, `${classId}班_成績總覽_${currentSemester.year}學年第${currentSemester.semester}學期.csv`);
+  showToast('成績單 Excel 已下載', 'success');
 };
 
+// ===== EXPORT: OVERVIEW PDF =====
 window.exportOverviewPDF = function() {
-  window.print();
+  const area = document.getElementById('overview-table-wrap');
+  if (!area) return;
+  printElement(area, `${userData?.homeroomClass||''}班　學期成績單　${currentSemester.year}學年第${currentSemester.semester}學期`);
 };
 
-window.exportOverviewExcel = function() {
-  showToast('Excel 匯出功能開發中', 'info');
+// ===== EXPORT: BLANK GRADE SHEET (橫向A4，一科一頁) =====
+window.exportBlankGradeSheet = async function() {
+  if (!userData?.homeroomClass) { showToast('僅導師可使用此功能','error'); return; }
+  const classId = userData.homeroomClass;
+  const grade = getGrade(classId);
+  const subjects = getSubjectsForGrade(grade).filter(s=>s.domain!=='flex');
+
+  const studentsSnap = await getDocs(query(collection(db,'students'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const students = studentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>a.seatNo-b.seatNo).filter(s=>s.specialMark!=='self');
+
+  const assignSnap = await getDocs(query(collection(db,'assignments'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const assignments = assignSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+  let pages = '';
+  for (const subj of subjects) {
+    const teacher = assignments.find(a=>a.subjectId===subj.id)?.teacherName || '　　　　';
+    const bodyRows = students.map(st => {
+      const tag = st.specialMark==='skip'?'（跳）':st.specialMark==='special'?'（特）':'';
+      return `<tr>
+        <td style="text-align:center;width:44px">${st.seatNo.toString().padStart(2,'0')}</td>
+        <td style="text-align:left;padding-left:6px;min-width:72px">${st.name}${tag}</td>
+        <td></td><td></td><td></td>
+        <td style="background:#eff6ff"></td>
+        <td style="background:#166534;opacity:0.15"></td>
+        <td></td><td></td><td></td>
+        <td style="background:#eff6ff"></td>
+        <td style="background:#166534;opacity:0.15"></td>
+        <td style="background:#fff8e1"></td>
+      </tr>`;
+    }).join('');
+
+    pages += `<div class="print-page">
+      <div class="page-title">新莊國小 ${currentSemester.year}學年度第${currentSemester.semester===1?'一':'二'}學期　${classId}班「${subj.name}」成績登錄表</div>
+      <div class="page-meta">
+        <span>授課教師：${teacher}</span>
+        <span>填表日期：　　年　　月　　日</span>
+        <span>總人數：　　人</span>
+      </div>
+      <table class="blank-table">
+        <thead>
+          <tr>
+            <th rowspan="2">座號</th>
+            <th rowspan="2">姓名</th>
+            <th colspan="3">第一次平時成績</th>
+            <th rowspan="2" style="background:#1e40af">平時小計①</th>
+            <th rowspan="2" style="background:#166534">定期考①</th>
+            <th colspan="3">第二次平時成績</th>
+            <th rowspan="2" style="background:#1e40af">平時小計②</th>
+            <th rowspan="2" style="background:#166534">定期考②</th>
+            <th rowspan="2" style="background:#92400e">學期總分</th>
+          </tr>
+          <tr>
+            <th>作業一</th><th>作業二</th><th>作業三</th>
+            <th>作業一</th><th>作業二</th><th>作業三</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
+  }
+  openPrintWindow(pages, `${classId}班空白成績登錄表`, true);
 };
 
-window.exportFullGrades = function() {
-  showToast('完整成績匯出功能開發中', 'info');
+// ===== EXPORT: BLANK ROSTER =====
+window.exportBlankRosterSheet = async function() {
+  const classId = rosterCurrentClass || userData?.homeroomClass;
+  if (!classId) { showToast('請先選擇班級','error'); return; }
+
+  const studentsSnap = await getDocs(query(collection(db,'students'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const students = studentsSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.seatNo-b.seatNo);
+
+  const cols = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+  const bodyRows = students.map(st=>`<tr>
+    <td style="text-align:center">${st.seatNo.toString().padStart(2,'0')}</td>
+    <td style="text-align:left;padding-left:6px">${st.name}</td>
+    ${cols.map(()=>'<td></td>').join('')}
+  </tr>`).join('');
+
+  const page = `<div class="print-page">
+    <div class="page-title">新莊國小 ${currentSemester.year}學年度第${currentSemester.semester===1?'一':'二'}學期　${classId}班　點名表</div>
+    <div class="page-meta"><span>導師：　　　　</span><span>總人數：　　人</span></div>
+    <table class="blank-table">
+      <thead><tr><th style="width:44px">座號</th><th style="min-width:80px">姓名</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+  </div>`;
+  openPrintWindow(page, `${classId}班點名表`, true);
 };
+
+// ===== EXPORT: SIDEBAR QUICK BUTTONS =====
+window.exportBlankRoster = function() { exportBlankRosterSheet(); };
+window.exportBlankGrade  = function() { exportBlankGradeSheet(); };
+window.exportFullGrades  = function() { showToast('全校報表請至管理者後台使用','info'); };
+
+// ===== HELPERS: CSV download =====
+function downloadCSV(rows, filename) {
+  const BOM = '\uFEFF';
+  const content = BOM + rows.map(r => r.map(cell => {
+    const s = String(cell ?? '');
+    return (s.includes(',') || s.includes('"') || s.includes('\n')) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([content], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ===== HELPERS: Print element (list/table view) =====
+function printElement(el, title) {
+  const win = window.open('','_blank','width=1000,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><title>${title}</title>
+    <style>
+      @page{size:A4 landscape;margin:10mm}
+      body{font-family:'Noto Sans TC',Arial,sans-serif;font-size:9pt;margin:0}
+      h2{text-align:center;margin:0 0 8px;font-size:13pt}
+      table{border-collapse:collapse;width:100%}
+      th,td{border:1px solid #999;padding:4px 5px;text-align:center;white-space:nowrap}
+      th{background:#1e3a5f;color:white}
+      .final-score{font-weight:700;color:#1e3a5f}
+      .avg-row td{background:#1e3a5f;color:white;font-weight:700}
+      .td-name{text-align:left;padding-left:8px}
+    </style>
+  </head><body>
+    <h2>${title}</h2>${el.innerHTML}
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(), 500);
+}
+
+// ===== HELPERS: Open print window with styled pages =====
+function openPrintWindow(pagesHtml, title, landscape) {
+  const win = window.open('','_blank','width=1100,height=800');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"><title>${title}</title>
+    <style>
+      @page{size:A4 ${landscape?'landscape':'portrait'};margin:8mm}
+      *{box-sizing:border-box}
+      body{font-family:'Noto Sans TC',Arial,sans-serif;font-size:9pt;margin:0}
+      .print-page{page-break-after:always;padding:2mm}
+      .print-page:last-child{page-break-after:avoid}
+      .page-title{text-align:center;font-size:13pt;font-weight:700;margin-bottom:6px}
+      .page-meta{display:flex;gap:24px;margin-bottom:6px;font-size:9pt}
+      .blank-table{border-collapse:collapse;width:100%}
+      .blank-table th,.blank-table td{border:1px solid #666;padding:4px 3px;text-align:center;height:26px}
+      .blank-table th{background:#1e3a5f;color:white;font-size:8pt}
+      .blank-table tbody tr:nth-child(even){background:#f9fafb}
+    </style>
+  </head><body>
+    ${pagesHtml}
+    <script>window.onload=()=>setTimeout(()=>window.print(),500);<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+
 
 // ===== NAV =====
 window.showPage = function(page) {
