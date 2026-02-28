@@ -2539,6 +2539,31 @@ function openPrintWindow(pagesHtml, title, landscape) {
 
 
 
+// ===== SEMESTER SELECTOR =====
+function initSemesterSelector() {
+  const sel = document.getElementById('semester-select-top');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (let y = 114; y >= 111; y--) {
+    for (let s = 2; s >= 1; s--) {
+      const opt = document.createElement('option');
+      opt.value = `${y}-${s}`;
+      opt.textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
+      if (y === currentSemester.year && s === currentSemester.semester) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+window.changeSemester = function() {
+  const val = document.getElementById('semester-select-top').value;
+  const [y, s] = val.split('-').map(Number);
+  currentSemester = { year: y, semester: s };
+  const semEl = document.getElementById('sidebar-semester');
+  if (semEl) semEl.textContent = `${y}學年度 第${s===1?'一':'二'}學期`;
+  loadMyAssignments();
+};
+
 // ===== NAV =====
 window.showPage = function(page) {
   document.querySelectorAll('[id^="page-"]').forEach(el => el.style.display = 'none');
