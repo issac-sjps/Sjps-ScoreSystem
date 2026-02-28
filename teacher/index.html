@@ -1462,6 +1462,17 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
   const items1 = items1Snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.order||0)-(b.order||0));
   const items2 = items2Snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.order||0)-(b.order||0));
 
+  // Default: if no items set, auto-create 作業一 in Firestore so it's persistent
+  async function ensureDefaultItem(items, key, wId, section) {
+    if (items.length > 0) return items;
+    const defaultItem = { id: 'item_default', name: '作業一', weight: 100, order: 0, key, wId, section };
+    const ref = doc(collection(db, 'gradeItems'));
+    await setDoc(ref, defaultItem);
+    return [{ ...defaultItem, id: ref.id }];
+  }
+  const resolvedItems1 = await ensureDefaultItem(items1, `${wId}-1`, wId, '1');
+  const resolvedItems2 = await ensureDefaultItem(items2, `${wId}-2`, wId, '2');
+
   const gradesSnap = await getDocs(query(collection(db, 'grades'),
     where('classId', '==', classId), where('subjectId', '==', subjectId),
     where('semesterYear', '==', currentSemester.year), where('semesterNum', '==', currentSemester.semester)));
@@ -1478,10 +1489,10 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
   window._currentWeights = weights;
   window._currentWId = wId;
 
-  // All 4 raw sections (for total computation)
+  // All 4 raw sections (for total computation) — use resolvedItems
   const allSections = [
-    { key: '1',     items: items1.length > 0 ? items1 : [{id:'main',name:'成績',weight:100}], w: weights.w1 },
-    { key: '2',     items: items2.length > 0 ? items2 : [{id:'main',name:'成績',weight:100}], w: weights.w2 },
+    { key: '1',     items: resolvedItems1, w: weights.w1 },
+    { key: '2',     items: resolvedItems2, w: weights.w2 },
     { key: 'exam1', items: [{id:'single',name:'定期1',weight:100}], w: weights.w3 },
     { key: 'exam2', items: [{id:'single',name:'定期2',weight:100}], w: weights.w4 },
   ];
@@ -1491,10 +1502,10 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
   // Tab 1: 平時2 items + exam2 (merged)
   const tabs = [
     { label: '第一次平時與定期成績', shortLabel: '第一次',
-      regKey: '1',    regItems: allSections[0].items, regW: weights.w1,
+      regKey: '1',    regItems: resolvedItems1, regW: weights.w1,
       examKey: 'exam1', examW: weights.w3 },
     { label: '第二次平時與定期成績', shortLabel: '第二次',
-      regKey: '2',    regItems: allSections[1].items, regW: weights.w2,
+      regKey: '2',    regItems: resolvedItems2, regW: weights.w2,
       examKey: 'exam2', examW: weights.w4 },
   ];
 
@@ -1606,21 +1617,36 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
     tableHtml += `<td>—</td><td class="col-total">${avg}</td></tr>`;
     tableHtml += `</tbody></table></div>`;
 
-    // Edit items button
-    const noteHtml = `<div style="padding:8px 12px;background:#f8fafc;border:1px solid var(--gray-200);border-top:none;border-radius:0 0 var(--radius) var(--radius);display:flex;gap:8px;align-items:center">
-      <button class="btn btn-ghost btn-sm" onclick="openItemsModal('${wId}','${tab.regKey}','${tab.label}')">
-        ⚙️ ${regItems.length === 1 && regItems[0].id === 'main' ? '設定平時成績細項（作業/課堂等）' : `編輯平時細項（目前 ${regItems.length} 項）`}
-      </button>
+    sectionsHtml += `<div id="grade-section-${tabIdx}" style="display:${tabIdx===0?'block':'none'}">
+      <div style="padding:6px 12px;background:#f0f6ff;border:1px solid #c7d9f8;border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;display:flex;align-items:center;gap:8px">
+        <span style="font-size:0.78rem;color:#1e40af;font-weight:600">📋 平時成績細項：</span>
+        ${regItems.map(it => `<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:2px 8px;font-size:0.75rem;font-weight:600">${it.name}</span>`).join('')}
+        <button class="btn btn-primary btn-sm" onclick="openItemsModal('${wId}','${tab.regKey}','${tab.label}')" style="margin-left:4px;font-size:0.75rem;padding:3px 10px">
+          + 新增 / 編輯作業
+        </button>
+      </div>
+      ${tableHtml}
     </div>`;
-
-    sectionsHtml += `<div id="grade-section-${tabIdx}" style="display:${tabIdx===0?'block':'none'}">${tableHtml}${noteHtml}</div>`;
   });
+
+  // Build per-tab edit buttons for topbar
+  const editBtns = tabs.map((tab, i) => {
+    const regItems = tab.regItems;
+    const label = regItems.length === 1 && regItems[0].id === 'main'
+      ? `+ 新增作業細項` : `✏️ 編輯細項（${regItems.length}項）`;
+    return `<button class="btn btn-ghost btn-sm grade-edit-btn" data-tabidx="${i}"
+      onclick="openItemsModal('${wId}','${tab.regKey}','${tab.label}')"
+      style="display:${i===0?'inline-flex':'none'};align-items:center;gap:4px">
+      📋 ${label}
+    </button>`;
+  }).join('');
 
   area.innerHTML = `
     <div class="grade-topbar">
       <div style="font-weight:700;font-size:1rem;color:var(--primary)">${classId}班 · ${subjectName}</div>
       <div class="flex items-center gap-2 text-sm">${lockLabel}</div>
-      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
+        ${editBtns}
         <button class="btn btn-outline btn-sm" onclick="openWeightModal()">⚖️ 設定權重</button>
         ${!locked
           ? `<button class="btn btn-success btn-sm" onclick="lockGrades('${wId}')">🔒 期末鎖定</button>`
@@ -1665,11 +1691,11 @@ function computeStudentTotal(studentId, gradesMap, sections) {
 
 // ===== SWITCH GRADE TAB =====
 window.switchGradeTab = function(idx) {
-  document.querySelectorAll('.grade-section-tab').forEach((t, i) => {
-    t.classList.toggle('active', i === idx);
-  });
-  document.querySelectorAll('[id^="grade-section-"]').forEach((el, i) => {
-    el.style.display = i === idx ? 'block' : 'none';
+  document.querySelectorAll('.grade-section-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+  document.querySelectorAll('[id^="grade-section-"]').forEach((el, i) => el.style.display = i === idx ? 'block' : 'none');
+  // Toggle edit button visibility
+  document.querySelectorAll('.grade-edit-btn').forEach(btn => {
+    btn.style.display = parseInt(btn.dataset.tabidx) === idx ? 'inline-flex' : 'none';
   });
 };
 
@@ -1836,7 +1862,8 @@ window.openItemsModal = async function(wId, section, label) {
   if (existingItems.length > 0) {
     existingItems.forEach(it => addGradeItemRow(it.name, it.weight));
   } else {
-    addGradeItem();
+    // Default: 作業一 100%
+    addGradeItemRow('作業一', 100);
   }
 
   // Show multi-class option if applicable
