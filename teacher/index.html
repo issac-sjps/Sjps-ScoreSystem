@@ -1513,23 +1513,51 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
     ? `<span class="light-dot light-green"></span> 已鎖定`
     : `<span class="light-dot light-red"></span> 未鎖定（非最終成績）`;
 
-  // Build tabs
+  // Helper: compute a student's score for ONE merged tab (reg + exam)
+  // Returns null if not all items filled
+  function computeTabScore(studentId, tabCfg) {
+    const regItems = tabCfg.regItems;
+    let regScores = [];
+    for (const it of regItems) {
+      const gKey = `${studentId}-${tabCfg.regKey}-${it.id}`;
+      const existing = gradesMap[gKey];
+      if (existing?.score !== undefined && existing.score !== '') {
+        regScores.push({ score: parseFloat(existing.score), weight: it.weight || (100/regItems.length) });
+      }
+    }
+    const regSubtotal = regScores.length === regItems.length
+      ? regScores.reduce((s,x) => s + x.score * x.weight/100, 0) : null;
+
+    const examKey = `${studentId}-${tabCfg.examKey}-single`;
+    const examVal = gradesMap[examKey]?.score;
+    const examScore = (examVal !== undefined && examVal !== '') ? parseFloat(examVal) : null;
+
+    if (regSubtotal === null || examScore === null) return null;
+    // weighted: regSubtotal * regW% + examScore * examW%, normalized to 100
+    const totalW = tabCfg.regW + tabCfg.examW;
+    return (regSubtotal * tabCfg.regW + examScore * tabCfg.examW) / totalW;
+  }
+
+  // Build tabs HTML
   let tabsHtml = '<div class="grade-section-tabs">';
   tabs.forEach((tab, i) => {
     tabsHtml += `<div class="grade-section-tab ${i===0?'active':''}" onclick="switchGradeTab(${i})" id="grade-tab-${i}">
       ${tab.label}<small style="display:block;font-size:0.65em;opacity:0.75">平時 ${tab.regW}% ＋ 定期 ${tab.examW}%</small>
     </div>`;
   });
+  // 第三個 tab：學期總分
+  tabsHtml += `<div class="grade-section-tab" onclick="switchGradeTab(2)" id="grade-tab-2" style="border-color:#92400e">
+    📊 學期總分<small style="display:block;font-size:0.65em;opacity:0.75">第一次 ＋ 第二次 平均</small>
+  </div>`;
   tabsHtml += '</div>';
 
-  // Build each tab's table
+  // Build each input tab (tab 0 and 1)
   let sectionsHtml = '';
 
   tabs.forEach((tab, tabIdx) => {
     const regItems = tab.regItems;
     const showSubtotal = regItems.length > 1;
-    // Total col count for keyboard nav: regItems + (subtotal?) + 1 exam + 1 total
-    const totalCols = regItems.length + (showSubtotal ? 1 : 0) + 1; // exam is last before total
+    const totalCols = regItems.length + (showSubtotal ? 1 : 0) + 1;
 
     let tableHtml = `<div class="grade-table-scroll">
       <table class="excel-grade-table" id="grade-excel-${tabIdx}">
@@ -1537,21 +1565,17 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
           <th class="col-sticky col-seat">座號</th>
           <th class="col-sticky col-name">姓名</th>`;
 
-    // Reg item headers
-    regItems.forEach((it, ci) => {
+    regItems.forEach((it) => {
       tableHtml += `<th class="reg-col">${it.name}${it.weight && it.weight!==100 ? `<br><small style="opacity:.7">${it.weight}%</small>` : ''}</th>`;
     });
-    // Subtotal header
     if (showSubtotal) {
       tableHtml += `<th class="subtotal-col">平時小計<br><small style="opacity:.7">${tab.regW}%</small></th>`;
     }
-    // Exam header (always green)
     tableHtml += `<th class="exam-col">定期考<br><small style="opacity:.75">${tab.examW}%</small></th>`;
-    // Total header (sticky right)
-    tableHtml += `<th class="col-total col-sticky">學期總分</th>`;
+    tableHtml += `<th class="col-total col-sticky">第${tabIdx===0?'一':'二'}次總分</th>`;
     tableHtml += `</tr></thead><tbody>`;
 
-    let allTotals = [];
+    let tabTotals = [];
 
     allStudents.forEach((st, rowIdx) => {
       const isSkip = skipStudentIds.has(st.id);
@@ -1565,7 +1589,6 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
         if (showSubtotal) tableHtml += `<td class="subtotal-col">—</td>`;
         tableHtml += `<td class="exam-col">—</td>`;
       } else {
-        // Reg item inputs
         let regScores = [];
         regItems.forEach((it, ci) => {
           const gKey = `${st.id}-${tab.regKey}-${it.id}`;
@@ -1581,14 +1604,12 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
           if (val !== '') regScores.push({ score: parseFloat(val), weight: it.weight || (100/regItems.length) });
         });
 
-        // Subtotal
         if (showSubtotal) {
           const sub = regScores.length === regItems.length
             ? regScores.reduce((s,x) => s + x.score * x.weight/100, 0) : null;
           tableHtml += `<td class="subtotal-col" id="sub-${tabIdx}-${st.id}">${sub!==null ? sub.toFixed(1) : ''}</td>`;
         }
 
-        // Exam input (col index = regItems.length + showSubtotal ? 1 : 0)
         const examColIdx = regItems.length + (showSubtotal ? 1 : 0);
         const examKey = `${st.id}-${tab.examKey}-single`;
         const examVal = gradesMap[examKey]?.score ?? '';
@@ -1602,23 +1623,21 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
           onchange="saveGrade(this,'${classId}','${subjectId}','${wId}')"></td>`;
       }
 
-      // Total col (sticky right)
-      const total = computeStudentTotal(st.id, gradesMap, allSections);
-      allTotals.push(total);
-      tableHtml += `<td class="col-total" id="total-${tabIdx}-${st.id}">${total!==null ? total.toFixed(1) : ''}</td></tr>`;
+      const tabScore = isSkip ? null : computeTabScore(st.id, tab);
+      tabTotals.push(tabScore);
+      tableHtml += `<td class="col-total" id="tabtotal-${tabIdx}-${st.id}">${tabScore!==null ? tabScore.toFixed(1) : ''}</td></tr>`;
     });
 
-    // Average row
-    const validTotals = allTotals.filter(t => t!==null);
-    const avg = validTotals.length > 0 ? (validTotals.reduce((a,b)=>a+b,0)/validTotals.length).toFixed(1) : '—';
+    const validT = tabTotals.filter(t => t!==null);
+    const avgT = validT.length > 0 ? (validT.reduce((a,b)=>a+b,0)/validT.length).toFixed(1) : '—';
     tableHtml += `<tr class="avg-row"><td class="col-seat">—</td><td class="col-name">全班平均</td>`;
     regItems.forEach(() => tableHtml += `<td>—</td>`);
     if (showSubtotal) tableHtml += `<td>—</td>`;
-    tableHtml += `<td>—</td><td class="col-total">${avg}</td></tr>`;
+    tableHtml += `<td>—</td><td class="col-total">${avgT}</td></tr>`;
     tableHtml += `</tbody></table></div>`;
 
     sectionsHtml += `<div id="grade-section-${tabIdx}" style="display:${tabIdx===0?'block':'none'}">
-      <div style="padding:6px 12px;background:#f0f6ff;border:1px solid #c7d9f8;border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;display:flex;align-items:center;gap:8px">
+      <div style="padding:6px 12px;background:#f0f6ff;border:1px solid #c7d9f8;border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:0.78rem;color:#1e40af;font-weight:600">📋 平時成績細項：</span>
         ${regItems.map(it => `<span style="background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:2px 8px;font-size:0.75rem;font-weight:600">${it.name}</span>`).join('')}
         <button class="btn btn-primary btn-sm" onclick="openItemsModal('${wId}','${tab.regKey}','${tab.label}')" style="margin-left:4px;font-size:0.75rem;padding:3px 10px">
@@ -1629,24 +1648,59 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
     </div>`;
   });
 
-  // Build per-tab edit buttons for topbar
-  const editBtns = tabs.map((tab, i) => {
-    const regItems = tab.regItems;
-    const label = regItems.length === 1 && regItems[0].id === 'main'
-      ? `+ 新增作業細項` : `✏️ 編輯細項（${regItems.length}項）`;
-    return `<button class="btn btn-ghost btn-sm grade-edit-btn" data-tabidx="${i}"
-      onclick="openItemsModal('${wId}','${tab.regKey}','${tab.label}')"
-      style="display:${i===0?'inline-flex':'none'};align-items:center;gap:4px">
-      📋 ${label}
-    </button>`;
-  }).join('');
+  // ===== Tab 2: 學期總分 =====
+  let semesterHtml = `<div class="grade-table-scroll">
+    <table class="excel-grade-table" id="grade-excel-2">
+      <thead><tr>
+        <th class="col-sticky col-seat">座號</th>
+        <th class="col-sticky col-name">姓名</th>
+        <th class="subtotal-col">第一次總分<br><small style="opacity:.75">${weights.w1+weights.w3}%</small></th>
+        <th class="subtotal-col">第二次總分<br><small style="opacity:.75">${weights.w2+weights.w4}%</small></th>
+        <th class="col-total col-sticky">學期總分</th>
+      </tr></thead><tbody>`;
+
+  let semTotals = [];
+  allStudents.forEach(st => {
+    const isSkip = skipStudentIds.has(st.id);
+    const tagHtml = st.specialMark ? `<span class="tag tag-${st.specialMark}" style="font-size:.6rem;margin-left:3px">${{skip:'跳',special:'特'}[st.specialMark]||''}</span>` : '';
+    const t1 = isSkip ? null : computeTabScore(st.id, tabs[0]);
+    const t2 = isSkip ? null : computeTabScore(st.id, tabs[1]);
+    // Semester = weighted average of t1 and t2 by their combined weights
+    const w1total = weights.w1 + weights.w3;
+    const w2total = weights.w2 + weights.w4;
+    const semScore = (t1 !== null && t2 !== null)
+      ? (t1 * w1total + t2 * w2total) / (w1total + w2total)
+      : null;
+    semTotals.push(semScore);
+
+    semesterHtml += `<tr>
+      <td class="col-seat">${st.seatNo.toString().padStart(2,'0')}</td>
+      <td class="col-name">${st.name}${tagHtml}</td>
+      <td class="subtotal-col">${t1 !== null ? t1.toFixed(1) : '—'}</td>
+      <td class="subtotal-col">${t2 !== null ? t2.toFixed(1) : '—'}</td>
+      <td class="col-total">${semScore !== null ? semScore.toFixed(1) : '—'}</td>
+    </tr>`;
+  });
+
+  const validSem = semTotals.filter(t => t!==null);
+  const avgSem = validSem.length > 0 ? (validSem.reduce((a,b)=>a+b,0)/validSem.length).toFixed(1) : '—';
+  semesterHtml += `<tr class="avg-row">
+    <td class="col-seat">—</td><td class="col-name">全班平均</td>
+    <td>—</td><td>—</td><td class="col-total">${avgSem}</td>
+  </tr></tbody></table></div>`;
+
+  sectionsHtml += `<div id="grade-section-2" style="display:none">
+    <div style="padding:8px 12px;background:#fff8e1;border:1px solid #fbbf24;border-bottom:none;border-radius:var(--radius) var(--radius) 0 0;font-size:0.78rem;color:#92400e;font-weight:600">
+      📊 學期總分 ＝ 第一次總分（平時${weights.w1}% ＋ 定期${weights.w3}%）× ${weights.w1+weights.w3}% ＋ 第二次總分（平時${weights.w2}% ＋ 定期${weights.w4}%）× ${weights.w2+weights.w4}%
+    </div>
+    ${semesterHtml}
+  </div>`;
 
   area.innerHTML = `
     <div class="grade-topbar">
       <div style="font-weight:700;font-size:1rem;color:var(--primary)">${classId}班 · ${subjectName}</div>
       <div class="flex items-center gap-2 text-sm">${lockLabel}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
-        ${editBtns}
         <button class="btn btn-outline btn-sm" onclick="openWeightModal()">⚖️ 設定權重</button>
         ${!locked
           ? `<button class="btn btn-success btn-sm" onclick="lockGrades('${wId}')">🔒 期末鎖定</button>`
