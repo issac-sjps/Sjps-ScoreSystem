@@ -132,9 +132,8 @@
     .excel-grade-table {
       border-collapse: separate;
       border-spacing: 0;
-      width: 100%;
+      width: max-content;  /* 不撐滿，依內容延伸 */
       font-size: 0.82rem;
-      min-width: 500px;
     }
     .excel-grade-table th {
       background: var(--primary);
@@ -148,13 +147,10 @@
       font-weight: 600;
       font-size: 0.78rem;
     }
-    .excel-grade-table th.col-sticky {
-      position: sticky;
-      left: 0;
-      z-index: 3;
-    }
-    .excel-grade-table th.col-seat { min-width: 52px; left: 0; }
-    .excel-grade-table th.col-name { min-width: 80px; left: 52px; }
+    .excel-grade-table th.col-sticky { position: sticky; z-index: 3; }
+    .excel-grade-table th.col-seat  { width: 52px;  min-width: 52px;  left: 0; }
+    .excel-grade-table th.col-name  { width: 90px;  min-width: 90px;  left: 52px; }
+    .excel-grade-table th.col-total { width: 80px;  min-width: 80px; }
     .excel-grade-table td {
       padding: 4px 6px;
       border-bottom: 1px solid var(--gray-100);
@@ -166,36 +162,44 @@
       position: sticky; left: 0; z-index: 1;
       background: var(--gray-50);
       font-weight: 600; color: var(--gray-500);
-      min-width: 52px;
+      width: 52px; min-width: 52px;
     }
     .excel-grade-table td.col-name {
       position: sticky; left: 52px; z-index: 1;
       background: white;
       text-align: left; font-weight: 600;
-      padding-left: 10px; min-width: 80px;
-      white-space: nowrap;
+      padding-left: 10px; width: 90px; min-width: 90px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px;
     }
+    .excel-grade-table td.col-total {
+      position: sticky; right: 0; z-index: 1;
+      width: 72px; min-width: 72px;
+    }
+    .excel-grade-table th.col-total { position: sticky; right: 0; z-index: 3; }
     .excel-grade-table tr:hover td { background: #f0f6ff !important; }
     .excel-grade-table tr:hover td.col-seat { background: #e0ecff !important; }
+    .excel-grade-table tr:hover td.col-total { background: #fef3c7 !important; }
     .excel-grade-table .avg-row td {
       background: var(--primary) !important;
       color: white !important;
       font-weight: 700;
     }
-    .excel-grade-table .total-col { background: #fff8e1 !important; font-weight: 700; color: var(--primary); }
-    .excel-grade-table .exam-col { background: #f0fdf4; }
+    .excel-grade-table .avg-row td.col-total { background: #78350f !important; }
+    /* 平時成績欄 (白底) */
+    .excel-grade-table td.reg-col { background: white; }
+    .excel-grade-table th.reg-col  { background: var(--primary); }
+    /* 定期考欄 (綠底) */
+    .excel-grade-table td.exam-col { background: #f0fdf4; }
     .excel-grade-table th.exam-col { background: #166534; }
-    .excel-grade-table th.total-col { background: #92400e; }
-    .excel-grade-table .section-header th {
-      background: var(--primary-light);
-      color: white;
-      font-size: 0.72rem;
-      padding: 4px 8px;
-    }
-    .excel-grade-table .section-header th.exam-col { background: #15803d; }
-    .excel-grade-table .section-header th.total-col { background: #78350f; }
+    /* 平時小計欄 (淡藍底) */
+    .excel-grade-table td.subtotal-col { background: #eff6ff; font-weight: 700; color: #1e40af; }
+    .excel-grade-table th.subtotal-col { background: #1e40af; }
+    /* 學期總分欄 (金底) */
+    .excel-grade-table td.col-total { background: #fff8e1; font-weight: 700; color: #92400e; }
+    .excel-grade-table th.col-total { background: #92400e; }
+
     .grade-cell-input {
-      width: 56px; padding: 3px 4px;
+      width: 52px; padding: 3px 4px;
       border: 1px solid transparent;
       border-radius: 3px;
       text-align: center;
@@ -212,11 +216,16 @@
     }
     .grade-cell-input:disabled { background: transparent; color: var(--gray-400); cursor: not-allowed; }
     .grade-cell-input.invalid { border-color: var(--danger) !important; background: #fef2f2; }
-    .section-divider { border-left: 2px solid var(--gray-300) !important; }
-    .grade-table-scroll { overflow-x: auto; max-height: calc(100vh - 260px); overflow-y: auto; }
+
+    .grade-table-scroll {
+      overflow-x: auto;
+      max-height: calc(100vh - 240px);
+      overflow-y: auto;
+      border: 1px solid var(--gray-200);
+      border-radius: 0 0 var(--radius) var(--radius);
+    }
     .grade-section-tabs {
       display: flex; gap: 0; border-bottom: 2px solid var(--primary);
-      margin-bottom: 0;
     }
     .grade-section-tab {
       padding: 8px 20px; font-size: 0.85rem; font-weight: 600;
@@ -225,30 +234,17 @@
       border-radius: 6px 6px 0 0; margin-right: 4px;
       transition: all 0.15s;
     }
-    .grade-section-tab.active {
-      background: var(--primary); color: white; border-color: var(--primary);
-    }
+    .grade-section-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
     .grade-section-tab:hover:not(.active) { background: var(--primary-pale); color: var(--primary); }
-
-    /* 成績輸入頁頭部固定 */
     .grade-topbar {
       display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
       padding: 12px 16px; background: white;
       border: 1px solid var(--gray-200); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      position: sticky; top: 0; z-index: 10;
     }
-
-    /* class chip for grade & roster pages */
     .class-chip-sm {
-      border: 1.5px solid var(--gray-200);
-      border-radius: 6px;
-      padding: 5px 12px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      cursor: pointer;
-      background: white;
-      color: var(--gray-600);
-      transition: all 0.12s;
+      border: 1.5px solid var(--gray-200); border-radius: 6px;
+      padding: 5px 12px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; background: white; color: var(--gray-600); transition: all 0.12s;
     }
     .class-chip-sm:hover { border-color: var(--primary-light); color: var(--primary); background: var(--primary-pale); }
     .class-chip-sm.active { border-color: var(--primary); color: white; background: var(--primary); }
@@ -1444,8 +1440,6 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
 
   const area = document.getElementById('grade-input-area');
   area.innerHTML = '<div class="empty-state"><div class="spinner" style="margin:auto"></div></div>';
-
-  // Scroll to input area
   setTimeout(() => area.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
   // Load students
@@ -1456,167 +1450,170 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
   const studentsSnap = await getDocs(studentsQ);
   const allStudents = studentsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => a.seatNo - b.seatNo)
-    .filter(s => s.specialMark !== 'self'); // exclude 自學生
+    .filter(s => s.specialMark !== 'self');
 
   const wId = `${currentSemester.year}-${currentSemester.semester}-${classId}-${subjectId}`;
 
-  // Load weights
   const wSnap = await getDoc(doc(db, 'gradeWeights', wId));
   const weights = wSnap.exists() ? wSnap.data() : { w1: 25, w2: 25, w3: 25, w4: 25 };
 
-  // Load grade items
   const items1Snap = await getDocs(query(collection(db, 'gradeItems'), where('key', '==', `${wId}-1`)));
   const items2Snap = await getDocs(query(collection(db, 'gradeItems'), where('key', '==', `${wId}-2`)));
-  const items1 = items1Snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (a.order || 0) - (b.order || 0));
-  const items2 = items2Snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (a.order || 0) - (b.order || 0));
+  const items1 = items1Snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.order||0)-(b.order||0));
+  const items2 = items2Snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.order||0)-(b.order||0));
 
-  // Load existing grades
   const gradesSnap = await getDocs(query(collection(db, 'grades'),
-    where('classId', '==', classId),
-    where('subjectId', '==', subjectId),
-    where('semesterYear', '==', currentSemester.year),
-    where('semesterNum', '==', currentSemester.semester)));
+    where('classId', '==', classId), where('subjectId', '==', subjectId),
+    where('semesterYear', '==', currentSemester.year), where('semesterNum', '==', currentSemester.semester)));
   const gradesMap = {};
   gradesSnap.docs.forEach(d => {
     const gd = d.data();
     gradesMap[`${gd.studentId}-${gd.section}-${gd.item}`] = { id: d.id, score: gd.score };
   });
 
-  // Load lock status
   const lockSnap = await getDoc(doc(db, 'gradeLocks', wId));
   const locked = lockSnap.exists() && lockSnap.data().locked;
-
   const skipStudentIds = new Set(allStudents.filter(s => s.specialMark === 'skip' && s.skipSubjects?.includes(subjectId)).map(s => s.id));
 
   window._currentWeights = weights;
   window._currentWId = wId;
 
-  // Build sections config
-  const sections = [
-    { key: '1', label: '第一次定期前成績', shortLabel: '平時1', items: items1.length > 0 ? items1 : [{ id: 'main', name: '成績', weight: 100 }], isExam: false, w: weights.w1 },
-    { key: '2', label: '第二次定期前成績', shortLabel: '平時2', items: items2.length > 0 ? items2 : [{ id: 'main', name: '成績', weight: 100 }], isExam: false, w: weights.w2 },
-    { key: 'exam1', label: '第一次定期成績', shortLabel: '定期1', items: [{ id: 'single', name: '定期1', weight: 100 }], isExam: true, w: weights.w3 },
-    { key: 'exam2', label: '第二次定期成績', shortLabel: '定期2', items: [{ id: 'single', name: '定期2', weight: 100 }], isExam: true, w: weights.w4 },
-  ].filter(s => s.w > 0);
+  // All 4 raw sections (for total computation)
+  const allSections = [
+    { key: '1',     items: items1.length > 0 ? items1 : [{id:'main',name:'成績',weight:100}], w: weights.w1 },
+    { key: '2',     items: items2.length > 0 ? items2 : [{id:'main',name:'成績',weight:100}], w: weights.w2 },
+    { key: 'exam1', items: [{id:'single',name:'定期1',weight:100}], w: weights.w3 },
+    { key: 'exam2', items: [{id:'single',name:'定期2',weight:100}], w: weights.w4 },
+  ];
 
-  // ---- Build HTML ----
+  // Merged tab config:
+  // Tab 0: 平時1 items + exam1 (merged)
+  // Tab 1: 平時2 items + exam2 (merged)
+  const tabs = [
+    { label: '第一次平時與定期成績', shortLabel: '第一次',
+      regKey: '1',    regItems: allSections[0].items, regW: weights.w1,
+      examKey: 'exam1', examW: weights.w3 },
+    { label: '第二次平時與定期成績', shortLabel: '第二次',
+      regKey: '2',    regItems: allSections[1].items, regW: weights.w2,
+      examKey: 'exam2', examW: weights.w4 },
+  ];
+
   const lockLabel = locked
     ? `<span class="light-dot light-green"></span> 已鎖定`
     : `<span class="light-dot light-red"></span> 未鎖定（非最終成績）`;
 
-  // Tabs
+  // Build tabs
   let tabsHtml = '<div class="grade-section-tabs">';
-  sections.forEach((sec, i) => {
-    tabsHtml += `<div class="grade-section-tab ${i === 0 ? 'active' : ''}" 
-      onclick="switchGradeTab(${i})" id="grade-tab-${i}">
-      ${sec.label}<small style="display:block;font-size:0.65em;opacity:0.7">（${sec.w}%）</small>
+  tabs.forEach((tab, i) => {
+    tabsHtml += `<div class="grade-section-tab ${i===0?'active':''}" onclick="switchGradeTab(${i})" id="grade-tab-${i}">
+      ${tab.label}<small style="display:block;font-size:0.65em;opacity:0.75">平時 ${tab.regW}% ＋ 定期 ${tab.examW}%</small>
     </div>`;
   });
   tabsHtml += '</div>';
 
+  // Build each tab's table
   let sectionsHtml = '';
-  sections.forEach((sec, tabIdx) => {
-    const students = allStudents;
 
-    // Build column list: items + (subtotal if multi) + exam cols come later
-    const cols = [];
-    sec.items.forEach((it, idx) => {
-      cols.push({ key: `${sec.key}-${it.id}`, label: it.name, sublabel: it.weight !== 100 ? `${it.weight}%` : '', section: sec.key, item: it.id, isExam: sec.isExam });
-    });
-    const showSubtotal = sec.items.length > 1;
+  tabs.forEach((tab, tabIdx) => {
+    const regItems = tab.regItems;
+    const showSubtotal = regItems.length > 1;
+    // Total col count for keyboard nav: regItems + (subtotal?) + 1 exam + 1 total
+    const totalCols = regItems.length + (showSubtotal ? 1 : 0) + 1; // exam is last before total
 
-    // Table HTML
     let tableHtml = `<div class="grade-table-scroll">
       <table class="excel-grade-table" id="grade-excel-${tabIdx}">
-        <thead>
-          <tr>
-            <th class="col-sticky col-seat">座號</th>
-            <th class="col-sticky col-name">姓名</th>`;
+        <thead><tr>
+          <th class="col-sticky col-seat">座號</th>
+          <th class="col-sticky col-name">姓名</th>`;
 
-    cols.forEach((col, ci) => {
-      const isExamCls = sec.isExam ? ' exam-col' : '';
-      tableHtml += `<th class="${isExamCls}" style="${ci === 0 && !sec.isExam ? 'border-left:2px solid rgba(255,255,255,0.3)' : ''}">
-        ${col.label}${col.sublabel ? `<br><small style="opacity:0.7">${col.sublabel}</small>` : ''}
-      </th>`;
+    // Reg item headers
+    regItems.forEach((it, ci) => {
+      tableHtml += `<th class="reg-col">${it.name}${it.weight && it.weight!==100 ? `<br><small style="opacity:.7">${it.weight}%</small>` : ''}</th>`;
     });
-
+    // Subtotal header
     if (showSubtotal) {
-      tableHtml += `<th class="exam-col">小計</th>`;
+      tableHtml += `<th class="subtotal-col">平時小計<br><small style="opacity:.7">${tab.regW}%</small></th>`;
     }
-    tableHtml += `<th class="total-col">個人學期總分</th></tr></thead><tbody>`;
+    // Exam header (always green)
+    tableHtml += `<th class="exam-col">定期考<br><small style="opacity:.75">${tab.examW}%</small></th>`;
+    // Total header (sticky right)
+    tableHtml += `<th class="col-total col-sticky">學期總分</th>`;
+    tableHtml += `</tr></thead><tbody>`;
 
-    let allStudentTotals = [];
+    let allTotals = [];
 
-    students.forEach((st, rowIdx) => {
+    allStudents.forEach((st, rowIdx) => {
       const isSkip = skipStudentIds.has(st.id);
-      const tagHtml = st.specialMark ? `<span class="tag tag-${st.specialMark}" style="font-size:0.62rem;margin-left:4px">${{skip:'跳',special:'特'}[st.specialMark]||''}</span>` : '';
+      const tagHtml = st.specialMark ? `<span class="tag tag-${st.specialMark}" style="font-size:.6rem;margin-left:3px">${{skip:'跳',special:'特'}[st.specialMark]||''}</span>` : '';
 
-      tableHtml += `<tr>
-        <td class="col-seat">${st.seatNo.toString().padStart(2,'0')}</td>
+      tableHtml += `<tr><td class="col-seat">${st.seatNo.toString().padStart(2,'0')}</td>
         <td class="col-name">${st.name}${tagHtml}</td>`;
 
-      let sectionScore = null;
       if (isSkip) {
-        cols.forEach(() => { tableHtml += `<td><span style="color:var(--gray-300)">—</span></td>`; });
-        if (showSubtotal) tableHtml += `<td>—</td>`;
+        regItems.forEach(() => tableHtml += `<td class="reg-col"><span style="color:var(--gray-300)">—</span></td>`);
+        if (showSubtotal) tableHtml += `<td class="subtotal-col">—</td>`;
+        tableHtml += `<td class="exam-col">—</td>`;
       } else {
-        let itemScores = [];
-        cols.forEach((col, ci) => {
-          const gKey = `${st.id}-${col.section}-${col.item}`;
-          const existing = gradesMap[gKey];
-          const val = existing?.score ?? '';
-          const isExamCls = sec.isExam ? ' exam-col' : '';
+        // Reg item inputs
+        let regScores = [];
+        regItems.forEach((it, ci) => {
+          const gKey = `${st.id}-${tab.regKey}-${it.id}`;
+          const val = gradesMap[gKey]?.score ?? '';
           const inputId = `gi-${tabIdx}-${rowIdx}-${ci}`;
-          tableHtml += `<td class="${isExamCls}">
-            <input type="text" class="grade-cell-input" id="${inputId}"
-              data-sid="${st.id}" data-section="${col.section}" data-item="${col.item}"
-              data-tabidx="${tabIdx}" data-row="${rowIdx}" data-col="${ci}"
-              value="${val}" ${locked ? 'disabled' : ''}
-              oninput="handleGradeCellInput(this)"
-              onkeydown="handleGradeCellKey(event,this)"
-              onchange="saveGrade(this,'${classId}','${subjectId}','${wId}')">
-          </td>`;
-          if (val !== '') itemScores.push({ score: parseFloat(val), weight: sec.items[ci]?.weight || (100 / sec.items.length) });
+          tableHtml += `<td class="reg-col"><input type="text" class="grade-cell-input" id="${inputId}"
+            data-sid="${st.id}" data-section="${tab.regKey}" data-item="${it.id}"
+            data-tabidx="${tabIdx}" data-row="${rowIdx}" data-col="${ci}" data-totalcols="${totalCols}"
+            value="${val}" ${locked ? 'disabled' : ''}
+            oninput="handleGradeCellInput(this)"
+            onkeydown="handleGradeCellKey(event,this)"
+            onchange="saveGrade(this,'${classId}','${subjectId}','${wId}')"></td>`;
+          if (val !== '') regScores.push({ score: parseFloat(val), weight: it.weight || (100/regItems.length) });
         });
 
+        // Subtotal
         if (showSubtotal) {
-          const sub = itemScores.length === sec.items.length
-            ? itemScores.reduce((s, x) => s + x.score * x.weight / 100, 0) : null;
-          tableHtml += `<td class="exam-col" id="sub-${tabIdx}-${st.id}">${sub !== null ? sub.toFixed(1) : ''}</td>`;
-          if (sub !== null) sectionScore = sub;
-        } else if (itemScores.length > 0) {
-          sectionScore = itemScores[0].score;
+          const sub = regScores.length === regItems.length
+            ? regScores.reduce((s,x) => s + x.score * x.weight/100, 0) : null;
+          tableHtml += `<td class="subtotal-col" id="sub-${tabIdx}-${st.id}">${sub!==null ? sub.toFixed(1) : ''}</td>`;
         }
+
+        // Exam input (col index = regItems.length + showSubtotal ? 1 : 0)
+        const examColIdx = regItems.length + (showSubtotal ? 1 : 0);
+        const examKey = `${st.id}-${tab.examKey}-single`;
+        const examVal = gradesMap[examKey]?.score ?? '';
+        const examInputId = `gi-${tabIdx}-${rowIdx}-${examColIdx}`;
+        tableHtml += `<td class="exam-col"><input type="text" class="grade-cell-input" id="${examInputId}"
+          data-sid="${st.id}" data-section="${tab.examKey}" data-item="single"
+          data-tabidx="${tabIdx}" data-row="${rowIdx}" data-col="${examColIdx}" data-totalcols="${totalCols}"
+          value="${examVal}" ${locked ? 'disabled' : ''}
+          oninput="handleGradeCellInput(this)"
+          onkeydown="handleGradeCellKey(event,this)"
+          onchange="saveGrade(this,'${classId}','${subjectId}','${wId}')"></td>`;
       }
 
-      // Compute overall semester total (all sections)
-      const total = computeStudentTotal(st.id, gradesMap, sections, allStudents);
-      allStudentTotals.push(total);
-      tableHtml += `<td class="total-col" id="total-${tabIdx}-${st.id}">${total !== null ? total.toFixed(1) : ''}</td></tr>`;
+      // Total col (sticky right)
+      const total = computeStudentTotal(st.id, gradesMap, allSections);
+      allTotals.push(total);
+      tableHtml += `<td class="col-total" id="total-${tabIdx}-${st.id}">${total!==null ? total.toFixed(1) : ''}</td></tr>`;
     });
 
     // Average row
-    const validTotals = allStudentTotals.filter(t => t !== null);
+    const validTotals = allTotals.filter(t => t!==null);
     const avg = validTotals.length > 0 ? (validTotals.reduce((a,b)=>a+b,0)/validTotals.length).toFixed(1) : '—';
-    tableHtml += `<tr class="avg-row">
-      <td class="col-seat">—</td>
-      <td class="col-name">全班平均</td>`;
-    cols.forEach(() => tableHtml += `<td>—</td>`);
+    tableHtml += `<tr class="avg-row"><td class="col-seat">—</td><td class="col-name">全班平均</td>`;
+    regItems.forEach(() => tableHtml += `<td>—</td>`);
     if (showSubtotal) tableHtml += `<td>—</td>`;
-    tableHtml += `<td class="total-col">${avg}</td></tr>`;
-
+    tableHtml += `<td>—</td><td class="col-total">${avg}</td></tr>`;
     tableHtml += `</tbody></table></div>`;
 
-    // Section note
-    const noteHtml = !sec.isExam && sec.items.length === 1
-      ? `<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="openItemsModal('${wId}','${sec.key}','${sec.label}')">⚙️ 設定細項（作業/課堂等）</button></div>`
-      : !sec.isExam ? `<div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="openItemsModal('${wId}','${sec.key}','${sec.label}')">⚙️ 編輯細項</button></div>` : '';
-
-    sectionsHtml += `<div id="grade-section-${tabIdx}" style="display:${tabIdx === 0 ? 'block' : 'none'}">
-      ${tableHtml}${noteHtml}
+    // Edit items button
+    const noteHtml = `<div style="padding:8px 12px;background:#f8fafc;border:1px solid var(--gray-200);border-top:none;border-radius:0 0 var(--radius) var(--radius);display:flex;gap:8px;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="openItemsModal('${wId}','${tab.regKey}','${tab.label}')">
+        ⚙️ ${regItems.length === 1 && regItems[0].id === 'main' ? '設定平時成績細項（作業/課堂等）' : `編輯平時細項（目前 ${regItems.length} 項）`}
+      </button>
     </div>`;
+
+    sectionsHtml += `<div id="grade-section-${tabIdx}" style="display:${tabIdx===0?'block':'none'}">${tableHtml}${noteHtml}</div>`;
   });
 
   area.innerHTML = `
@@ -1630,19 +1627,21 @@ window.openGradeInput = async function(classId, subjectId, subjectName, hours) {
           : `<button class="btn btn-ghost btn-sm" onclick="unlockGrades('${wId}')">🔓 解除鎖定</button>`}
       </div>
     </div>
-    <div style="padding:0 0 4px;background:white;border-left:1px solid var(--gray-200);border-right:1px solid var(--gray-200)">
-      <div style="padding:8px 16px 0">
-        <span style="font-size:0.78rem;color:var(--gray-400)">權重：</span>
-        ${sections.map(s => `<span class="weight-chip">${s.shortLabel}：${s.w}%</span>`).join('')}
+    <div style="padding:0;background:white;border-left:1px solid var(--gray-200);border-right:1px solid var(--gray-200)">
+      <div style="padding:8px 16px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:0.75rem;color:var(--gray-400)">權重：</span>
+        <span class="weight-chip">平時1：${weights.w1}%</span>
+        <span class="weight-chip">平時2：${weights.w2}%</span>
+        <span class="weight-chip">定期1：${weights.w3}%</span>
+        <span class="weight-chip">定期2：${weights.w4}%</span>
       </div>
       ${tabsHtml}
     </div>
-    ${sectionsHtml}
-  `;
+    ${sectionsHtml}`;
 };
 
 // ===== COMPUTE STUDENT TOTAL =====
-function computeStudentTotal(studentId, gradesMap, sections, students) {
+function computeStudentTotal(studentId, gradesMap, sections) {
   let total = 0;
   let totalWeight = 0;
   for (const sec of sections) {
