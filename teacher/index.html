@@ -507,6 +507,7 @@
     </div>
     <div class="modal-body">
       <div class="alert alert-info mb-3">請為「<span id="items-section-label"></span>」設定評分細項，各項目權重總和須等於 100%</div>
+      <div id="items-multiclass-area" style="display:none;margin-top:12px"></div>
       <div class="grade-items-list" id="grade-items-list"></div>
       <button class="btn btn-ghost btn-sm mt-3" onclick="addGradeItem()">+ 新增項目</button>
       <div class="weight-total mt-2" id="items-total-display">總計：0%</div>
@@ -1299,7 +1300,7 @@ window.parseImport = function() {
 };
 
 window.confirmImport = async function() {
-  const classId = document.getElementById('roster-class-select').value;
+  const classId = rosterCurrentClass;
   if (!classId) { showToast('請先選擇班級', 'error'); return; }
   if (importedStudents.length === 0) { showToast('請先預覽解析', 'error'); return; }
 
@@ -1332,7 +1333,7 @@ window.confirmImport = async function() {
 };
 
 window.addStudent = async function() {
-  const classId = document.getElementById('roster-class-select').value;
+  const classId = rosterCurrentClass;
   if (!classId) { showToast('請先選擇班級', 'error'); return; }
   const studentId = document.getElementById('new-student-id').value.trim();
   const seatNo = parseInt(document.getElementById('new-student-no').value);
@@ -1971,34 +1972,100 @@ window.saveWeights = async function() {
   const vals = ['w1','w2','w3','w4'].map(id => parseInt(document.getElementById(id).value)||0);
   if (vals.reduce((a,b)=>a+b,0) !== 100) { showToast('權重總和必須等於 100%', 'error'); return; }
   const [w1,w2,w3,w4] = vals;
-  await setDoc(doc(db, 'gradeWeights', window._currentWId), { w1, w2, w3, w4, updatedAt: new Date() });
+
+  // Find same-subject, same-grade classes
+  const subjectId = currentGradeSubject?.id;
+  const sameClasses = subjectId
+    ? myAssignments.filter(a => a.subjectId === subjectId && a.classId !== currentGradeClass
+        && getGrade(a.classId) === getGrade(currentGradeClass)).map(a => a.classId)
+    : [];
+
+  let targetClasses = [currentGradeClass];
+
+  if (sameClasses.length > 0) {
+    // Ask user if they want to sync
+    const chosen = await showMultiClassDialog(
+      `您同時任教以下班級的「${currentGradeSubject?.name}」，是否同時更新這些班的權重？`,
+      sameClasses, '同步更新', '只更新本班'
+    );
+    targetClasses = [currentGradeClass, ...chosen];
+  }
+
+  const batch = writeBatch(db);
+  targetClasses.forEach(cls => {
+    const wId = `${currentSemester.year}-${currentSemester.semester}-${cls}-${subjectId}`;
+    batch.set(doc(db, 'gradeWeights', wId), { w1, w2, w3, w4, updatedAt: new Date() });
+  });
+  await batch.commit();
+
   window._currentWeights = { w1, w2, w3, w4 };
-  showToast('權重已儲存', 'success');
+  showToast(targetClasses.length > 1 ? `已同步更新 ${targetClasses.length} 個班級的權重` : '權重已儲存', 'success');
   closeModal('weight-modal');
   if (currentGradeSubject) openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
 };
 
 // ===== GRADE ITEMS =====
-window.openItemsModal = function(wId, section, label) {
+window.openItemsModal = async function(wId, section, label) {
   currentGradeItems = { wId, section };
   document.getElementById('items-section-label').textContent = label;
   const list = document.getElementById('grade-items-list');
   list.innerHTML = '';
-  // TODO: load existing items
-  addGradeItem();
+
+  // Load existing items for this wId-section
+  const key = `${wId}-${section}`;
+  const existingSnap = await getDocs(query(collection(db, 'gradeItems'), where('key', '==', key)));
+  const existingItems = existingSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order||0) - (b.order||0));
+
+  if (existingItems.length > 0) {
+    existingItems.forEach(it => addGradeItemRow(it.name, it.weight));
+  } else {
+    addGradeItem();
+  }
+
+  // Show multi-class option if applicable
+  const subjectId = currentGradeSubject?.id;
+  const sameClasses = subjectId
+    ? myAssignments.filter(a => a.subjectId === subjectId && a.classId !== currentGradeClass
+        && getGrade(a.classId) === getGrade(currentGradeClass)).map(a => a.classId)
+    : [];
+
+  const syncArea = document.getElementById('items-multiclass-area');
+  if (sameClasses.length > 0) {
+    syncArea.style.display = 'block';
+    syncArea.innerHTML = `
+      <div class="alert alert-info" style="font-size:0.8rem;padding:10px 14px">
+        <div style="font-weight:700;margin-bottom:6px">📌 同步到其他班級</div>
+        <div>您同時任教以下班級的「${currentGradeSubject?.name}」，儲存時可一起套用：</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          ${sameClasses.map(cls => `
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" class="sync-cls-cb" value="${cls}" checked>
+              <span class="class-chip-sm" style="padding:3px 10px;font-size:0.78rem">${cls}班</span>
+            </label>`).join('')}
+        </div>
+      </div>`;
+  } else {
+    syncArea.style.display = 'none';
+  }
+
   updateItemsTotal();
   showModal('items-modal');
 };
 
-window.addGradeItem = function() {
+function addGradeItemRow(name = '', weight = '') {
   const list = document.getElementById('grade-items-list');
   const row = document.createElement('div');
   row.className = 'grade-item-row';
   row.innerHTML = `
-    <input type="text" class="form-control" placeholder="項目名稱（如：作業）" oninput="autoDistributeItemWeights()">
-    <input type="number" class="form-control" placeholder="%" min="0" max="100" oninput="updateItemsTotal()" style="max-width:80px">
-    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove();updateItemsTotal()">✕</button>`;
+    <input type="text" class="form-control" placeholder="項目名稱（如：作業）" value="${name}" oninput="autoDistributeItemWeights()">
+    <input type="number" class="form-control" placeholder="%" min="0" max="100" value="${weight}" oninput="updateItemsTotal()" style="max-width:80px">
+    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove();autoDistributeItemWeights()">✕</button>`;
   list.appendChild(row);
+}
+
+window.addGradeItem = function() {
+  addGradeItemRow();
   autoDistributeItemWeights();
 };
 
@@ -2026,27 +2093,42 @@ window.saveGradeItems = async function() {
   const rows = document.querySelectorAll('#grade-items-list .grade-item-row');
   const items = [];
   let total = 0;
-  rows.forEach(row => {
+  rows.forEach((row, i) => {
     const inputs = row.querySelectorAll('input');
     const name = inputs[0].value.trim();
     const weight = parseInt(inputs[1].value) || 0;
-    if (name) { items.push({ name, weight }); total += weight; }
+    if (name) { items.push({ name, weight, order: i }); total += weight; }
   });
   if (total !== 100) { showToast('權重總和必須等於 100%', 'error'); return; }
   if (items.length === 0) { showToast('請至少新增一個項目', 'error'); return; }
 
-  const key = `${currentGradeItems.wId}-${currentGradeItems.section}`;
-  // Delete existing
-  const existingQ = query(collection(db, 'gradeItems'), where('key', '==', key));
-  const existingSnap = await getDocs(existingQ);
+  // Collect sync classes
+  const syncClasses = Array.from(document.querySelectorAll('.sync-cls-cb:checked')).map(cb => cb.value);
+  const subjectId = currentGradeSubject?.id;
+  const section = currentGradeItems.section;
+
+  // Target: current class + any checked sync classes
+  const targetClasses = [currentGradeClass, ...syncClasses];
+
   const batch = writeBatch(db);
-  existingSnap.docs.forEach(d => batch.delete(d.ref));
-  items.forEach(it => {
-    const ref = doc(collection(db, 'gradeItems'));
-    batch.set(ref, { ...it, key, wId: currentGradeItems.wId, section: currentGradeItems.section });
-  });
+  for (const cls of targetClasses) {
+    const wId = `${currentSemester.year}-${currentSemester.semester}-${cls}-${subjectId}`;
+    const key = `${wId}-${section}`;
+    // Delete existing items for this key
+    const existingSnap = await getDocs(query(collection(db, 'gradeItems'), where('key', '==', key)));
+    existingSnap.docs.forEach(d => batch.delete(d.ref));
+    // Add new items
+    items.forEach(it => {
+      const ref = doc(collection(db, 'gradeItems'));
+      batch.set(ref, { ...it, key, wId, section });
+    });
+  }
   await batch.commit();
-  showToast('細項已儲存', 'success');
+
+  const msg = targetClasses.length > 1
+    ? `✅ 已同步更新 ${targetClasses.length} 個班級的細項設定`
+    : '細項已儲存';
+  showToast(msg, 'success');
   closeModal('items-modal');
   if (currentGradeSubject) openGradeInput(currentGradeClass, currentGradeSubject.id, currentGradeSubject.name, currentGradeSubject.hours);
 };
@@ -2205,7 +2287,7 @@ window.changeSemester = function() {
 
 // ===== EXPORT =====
 window.exportBlankRoster = function() {
-  const classId = document.getElementById('roster-class-select').value || (userData?.homeroomClass || '');
+  const classId = rosterCurrentClass || (userData?.homeroomClass || '');
   showToast('空白點名表匯出功能開發中（即將完成）', 'info');
 };
 
@@ -2280,9 +2362,47 @@ window.filterBindGrade = function(grade) {
 };
 
 function populateClassSelects() {
-  const myClasses = [...new Set(myAssignments.map(a => a.classId))];
-  if (userData?.homeroomClass && !myClasses.includes(userData.homeroomClass))
-    myClasses.unshift(userData.homeroomClass);
+  // Chips are built in renderDashboard, nothing needed here
+  // Keep as no-op for compatibility
+}
+
+// ===== MULTI-CLASS DIALOG =====
+// Returns a Promise<string[]> of selected class IDs
+function showMultiClassDialog(message, classes, confirmLabel, skipLabel) {
+  return new Promise(resolve => {
+    // Create inline dialog
+    const existing = document.getElementById('multiclass-dialog');
+    if (existing) existing.remove();
+
+    const dlg = document.createElement('div');
+    dlg.id = 'multiclass-dialog';
+    dlg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    dlg.innerHTML = `
+      <div style="background:white;border-radius:12px;padding:24px;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+        <div style="font-weight:700;font-size:0.95rem;color:var(--primary);margin-bottom:12px">📋 同步到其他班級</div>
+        <div style="font-size:0.85rem;color:var(--gray-600);margin-bottom:16px">${message}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px">
+          ${classes.map(cls => `
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" class="mcd-cb" value="${cls}" checked>
+              <span style="background:var(--primary-pale);color:var(--primary);border:1px solid var(--primary-light);padding:4px 10px;border-radius:6px;font-size:0.82rem;font-weight:600">${cls}班</span>
+            </label>`).join('')}
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="mcd-skip" class="btn btn-ghost btn-sm">${skipLabel}</button>
+          <button id="mcd-confirm" class="btn btn-primary btn-sm">${confirmLabel}</button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(dlg);
+
+    dlg.querySelector('#mcd-skip').onclick = () => { dlg.remove(); resolve([]); };
+    dlg.querySelector('#mcd-confirm').onclick = () => {
+      const selected = Array.from(dlg.querySelectorAll('.mcd-cb:checked')).map(cb => cb.value);
+      dlg.remove();
+      resolve(selected);
+    };
+  });
 }
 
 // ===== HELPERS =====
