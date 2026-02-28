@@ -690,7 +690,8 @@
             <div style="font-size:1.05rem;font-weight:700;color:var(--primary)">
               <span id="roster-selected-class-label"></span>班 學生名單
             </div>
-            <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-outline btn-sm" onclick="exportBlankRosterSheet()">🖨️ 空白點名表</button>
               <button class="btn btn-outline btn-sm" onclick="showModal('roster-modal')">📋 快速匯入</button>
               <button class="btn btn-primary btn-sm" onclick="showModal('add-student-modal')">+ 新增學生</button>
             </div>
@@ -720,7 +721,12 @@
 
         <!-- Subject list (appears after class selected) -->
         <div id="grade-subject-panel" style="display:none;margin-bottom:14px">
-          <div style="font-size:0.78rem;color:var(--gray-400);font-weight:600;margin-bottom:8px">選擇科目</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+            <div style="font-size:0.78rem;color:var(--gray-400);font-weight:600">選擇科目</div>
+            <button class="btn btn-outline btn-sm" onclick="exportBlankGradeSheetForClass()" id="blank-grade-btn" style="font-size:0.78rem">
+              🖨️ 列印空白成績登錄表
+            </button>
+          </div>
           <div id="grade-subject-list" class="subject-list"></div>
         </div>
 
@@ -2443,10 +2449,81 @@ window.exportBlankGradeSheet = async function() {
   openPrintWindow(pages, `${classId}班空白成績登錄表`, true);
 };
 
-// ===== EXPORT: BLANK ROSTER =====
+// ===== EXPORT: BLANK GRADE SHEET FOR CLASS (科任/導師通用，只印自己的科目) =====
+window.exportBlankGradeSheetForClass = async function() {
+  const classId = currentGradeClass;
+  if (!classId) { showToast('請先選擇班級', 'error'); return; }
+
+  // 只印這位老師在此班的科目
+  const mySubjectsInClass = myAssignments.filter(a => a.classId === classId);
+  if (mySubjectsInClass.length === 0) { showToast('您在此班沒有任課科目', 'error'); return; }
+
+  const studentsSnap = await getDocs(query(collection(db,'students'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const students = studentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>a.seatNo-b.seatNo).filter(s=>s.specialMark!=='self');
+
+  const grade = getGrade(classId);
+  const allSubjects = getSubjectsForGrade(grade);
+
+  let pages = '';
+  for (const assign of mySubjectsInClass) {
+    const subj = allSubjects.find(s => s.id === assign.subjectId);
+    if (!subj) continue;
+    const subjName = subj.name + (assign.hours > 1 ? `（${assign.hours}節）` : '');
+
+    const bodyRows = students.map(st => {
+      const tag = st.specialMark==='skip'?'（跳）':st.specialMark==='special'?'（特）':'';
+      return `<tr>
+        <td style="text-align:center;width:44px">${st.seatNo.toString().padStart(2,'0')}</td>
+        <td style="text-align:left;padding-left:6px;min-width:72px">${st.name}${tag}</td>
+        <td></td><td></td><td></td>
+        <td style="background:#eff6ff"></td>
+        <td style="background:#d1fae5"></td>
+        <td></td><td></td><td></td>
+        <td style="background:#eff6ff"></td>
+        <td style="background:#d1fae5"></td>
+        <td style="background:#fff8e1"></td>
+      </tr>`;
+    }).join('');
+
+    pages += `<div class="print-page">
+      <div class="page-title">新莊國小 ${currentSemester.year}學年度第${currentSemester.semester===1?'一':'二'}學期　${classId}班「${subjName}」成績登錄表</div>
+      <div class="page-meta">
+        <span>授課教師：${userData?.realName || '　　　　'}</span>
+        <span>填表日期：　　年　　月　　日</span>
+        <span>總人數：${students.length}人</span>
+      </div>
+      <table class="blank-table">
+        <thead>
+          <tr>
+            <th rowspan="2">座號</th><th rowspan="2">姓名</th>
+            <th colspan="3">第一次平時成績</th>
+            <th rowspan="2" style="background:#1e40af">平時小計①</th>
+            <th rowspan="2" style="background:#166534">定期考①</th>
+            <th colspan="3">第二次平時成績</th>
+            <th rowspan="2" style="background:#1e40af">平時小計②</th>
+            <th rowspan="2" style="background:#166534">定期考②</th>
+            <th rowspan="2" style="background:#92400e">學期總分</th>
+          </tr>
+          <tr>
+            <th>作業一</th><th>作業二</th><th>作業三</th>
+            <th>作業一</th><th>作業二</th><th>作業三</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
+  }
+  openPrintWindow(pages, `${classId}班空白成績登錄表`, true);
+};
+
+// ===== EXPORT: BLANK ROSTER SHEET =====
 window.exportBlankRosterSheet = async function() {
-  const classId = rosterCurrentClass || userData?.homeroomClass;
-  if (!classId) { showToast('請先選擇班級','error'); return; }
+  // 優先用名單頁選的班級，再用成績頁，最後用導師班
+  const classId = rosterCurrentClass || currentGradeClass || userData?.homeroomClass;
+  if (!classId) { showToast('請先選擇班級', 'error'); return; }
 
   const studentsSnap = await getDocs(query(collection(db,'students'),
     where('classId','==',classId), where('semesterYear','==',currentSemester.year),
@@ -2462,9 +2539,17 @@ window.exportBlankRosterSheet = async function() {
 
   const page = `<div class="print-page">
     <div class="page-title">新莊國小 ${currentSemester.year}學年度第${currentSemester.semester===1?'一':'二'}學期　${classId}班　點名表</div>
-    <div class="page-meta"><span>導師：　　　　</span><span>總人數：　　人</span></div>
+    <div class="page-meta">
+      <span>導師：　　　　</span>
+      <span>總人數：${students.length}人</span>
+      <span>填表日期：　　年　　月　　日</span>
+    </div>
     <table class="blank-table">
-      <thead><tr><th style="width:44px">座號</th><th style="min-width:80px">姓名</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+      <thead><tr>
+        <th style="width:44px">座號</th>
+        <th style="min-width:80px">姓名</th>
+        ${cols.map(c=>`<th>${c}</th>`).join('')}
+      </tr></thead>
       <tbody>${bodyRows}</tbody>
     </table>
   </div>`;
