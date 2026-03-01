@@ -2818,7 +2818,7 @@ window.doPrintGradeSheet = async function() {
     .sort((a,b)=>a.seatNo-b.seatNo).filter(s=>s.specialMark!=='self');
 
   const grade = getGrade(classId);
-  const allSubjects = getSubjectsForGrade(grade).filter(s => s.domain !== 'flex');
+  const allSubjects = getSubjectsForGrade(grade); // 不過濾彈性，科任可印彈性科目
   const selectedSubjects = allSubjects.filter(s => _printGradeSubjects.includes(s.id));
 
   // Get teacher name for each subject
