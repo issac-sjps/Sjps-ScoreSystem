@@ -66,6 +66,22 @@
     .class-chip.my-class { border-color: var(--success); color: var(--success); }
     .class-chip.my-class.active { background: var(--success-light); }
 
+    /* 小型 chip，用於 modal 選擇器 */
+    .class-chip-sm {
+      border: 1.5px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-weight: 600;
+      font-size: 0.82rem;
+      color: var(--gray-600);
+      background: white;
+      font-family: var(--font-sans);
+    }
+    .class-chip-sm:hover { border-color: var(--primary-light); color: var(--primary); background: var(--primary-pale); }
+    .class-chip-sm.active { border-color: var(--primary); color: white; background: var(--primary); }
+
     .subject-list { display: flex; flex-direction: column; gap: 8px; }
     .subject-row {
       display: flex;
@@ -515,6 +531,81 @@
   </div>
 </div>
 
+<!-- 空白點名表 選班級 Modal -->
+<div class="modal-overlay" id="print-roster-modal" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">🖨️ 列印空白點名表</div>
+      <button class="modal-close" onclick="closeModal('print-roster-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">選擇年級</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="print-roster-grade-btns">
+          <button class="btn btn-primary btn-sm" onclick="filterPrintRosterGrade(0,this)">全部</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintRosterGrade(1,this)">一年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintRosterGrade(2,this)">二年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintRosterGrade(3,this)">三年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintRosterGrade(4,this)">四年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintRosterGrade(5,this)">五年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintRosterGrade(6,this)">六年級</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">選擇班級</label>
+        <div id="print-roster-class-chips" style="display:flex;flex-wrap:wrap;gap:8px;max-height:200px;overflow-y:auto"></div>
+      </div>
+      <div id="print-roster-selected" style="display:none;margin-top:12px;padding:10px 14px;background:var(--primary-pale);border-radius:8px;color:var(--primary);font-weight:700;font-size:0.9rem"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('print-roster-modal')">取消</button>
+      <button class="btn btn-primary" id="print-roster-confirm-btn" disabled onclick="doPrintRoster()">🖨️ 列印</button>
+    </div>
+  </div>
+</div>
+
+<!-- 空白成績登錄表 選班級+科目 Modal -->
+<div class="modal-overlay" id="print-grade-modal" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title">📄 列印空白成績登錄表</div>
+      <button class="modal-close" onclick="closeModal('print-grade-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">選擇年級</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="print-grade-grade-btns">
+          <button class="btn btn-primary btn-sm" onclick="filterPrintGradeGrade(0,this)">全部</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintGradeGrade(1,this)">一年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintGradeGrade(2,this)">二年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintGradeGrade(3,this)">三年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintGradeGrade(4,this)">四年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintGradeGrade(5,this)">五年級</button>
+          <button class="btn btn-ghost btn-sm" onclick="filterPrintGradeGrade(6,this)">六年級</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">選擇班級</label>
+        <div id="print-grade-class-chips" style="display:flex;flex-wrap:wrap;gap:8px;max-height:160px;overflow-y:auto;margin-bottom:4px"></div>
+      </div>
+      <div class="form-group" id="print-grade-subject-area" style="display:none">
+        <label class="form-label">選擇科目（可多選，不選＝全部）</label>
+        <div id="print-grade-subject-chips" style="display:flex;flex-wrap:wrap;gap:8px;max-height:140px;overflow-y:auto"></div>
+        <div style="margin-top:8px;font-size:0.75rem;color:var(--gray-400)">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="print-grade-all-subjects" onchange="toggleAllPrintSubjects(this)" checked>
+            全選 / 取消全選
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('print-grade-modal')">取消</button>
+      <button class="btn btn-primary" id="print-grade-confirm-btn" disabled onclick="doPrintGradeSheet()">🖨️ 列印</button>
+    </div>
+  </div>
+</div>
+
 <div class="app-layout">
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
@@ -549,10 +640,10 @@
         </div>
       </div>
       <div class="nav-section">匯出</div>
-      <div class="nav-item" onclick="exportBlankRoster()">
+      <div class="nav-item" onclick="openPrintRosterModal()">
         <span class="icon">🖨️</span> 空白點名表
       </div>
-      <div class="nav-item" onclick="exportBlankGrade()">
+      <div class="nav-item" onclick="openPrintGradeModal()">
         <span class="icon">📄</span> 空白成績登錄表
       </div>
       <div class="nav-item" id="nav-export-full" style="display:none" onclick="exportFullGrades()">
@@ -564,6 +655,14 @@
       </div>
     </nav>
     <div class="sidebar-footer">
+      <a href="https://issac-sjps.github.io/IssueTrackingSystem/" target="_blank" rel="noopener"
+        style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:8px;
+               background:rgba(255,255,255,0.08);border-radius:8px;color:rgba(255,255,255,0.75);
+               font-size:0.8rem;font-weight:600;text-decoration:none;transition:background 0.15s"
+        onmouseover="this.style.background='rgba(255,255,255,0.16)'"
+        onmouseout="this.style.background='rgba(255,255,255,0.08)'">
+        <span style="font-size:1rem">🐛</span> 問題回報
+      </a>
       <div class="user-info">
         <div class="user-avatar" id="user-avatar">？</div>
         <div>
@@ -742,8 +841,8 @@
           <div class="card-header" style="flex-wrap:wrap;gap:8px">
             <div class="card-title">📈 班級成績總覽</div>
             <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn btn-outline btn-sm" onclick="exportBlankGradeSheet()">🖨️ 空白成績登錄表</button>
-              <button class="btn btn-outline btn-sm" onclick="exportBlankRosterSheet()">🖨️ 空白點名表</button>
+              <button class="btn btn-outline btn-sm" onclick="openPrintGradeModal()">🖨️ 空白成績登錄表</button>
+              <button class="btn btn-outline btn-sm" onclick="openPrintRosterModal()">🖨️ 空白點名表</button>
               <button class="btn btn-outline btn-sm" onclick="exportOverviewExcel()">⬇️ Excel 成績單</button>
               <button class="btn btn-primary btn-sm" onclick="exportOverviewPDF()">🖨️ 列印/PDF</button>
             </div>
@@ -2556,9 +2655,224 @@ window.exportBlankRosterSheet = async function() {
   openPrintWindow(page, `${classId}班點名表`, true);
 };
 
+// ===== PRINT PICKER MODALS =====
+let _printRosterClass = null;
+let _printGradeClass = null;
+let _printGradeSubjects = [];
+
+function buildPrintClassChips(containerId, gradeFilter, onSelect, currentVal) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  // Only show classes the teacher has assignments in, or all if homeroom
+  const relevantClasses = userData?.teacherRole === 'homeroom'
+    ? ALL_CLASSES
+    : [...new Set(myAssignments.map(a => a.classId))].sort();
+
+  container.innerHTML = '';
+  relevantClasses.forEach(c => {
+    const g = getGrade(c);
+    if (gradeFilter && g !== gradeFilter) return;
+    const chip = document.createElement('button');
+    chip.className = 'class-chip-sm' + (c === currentVal ? ' active' : '');
+    chip.textContent = c + '班';
+    chip.onclick = () => {
+      container.querySelectorAll('.class-chip-sm').forEach(ch => ch.classList.remove('active'));
+      chip.classList.add('active');
+      onSelect(c);
+    };
+    container.appendChild(chip);
+  });
+}
+
+// -- 點名表 Modal --
+window.openPrintRosterModal = function() {
+  _printRosterClass = rosterCurrentClass || currentGradeClass || userData?.homeroomClass || null;
+  buildPrintClassChips('print-roster-class-chips', 0, cls => {
+    _printRosterClass = cls;
+    const sel = document.getElementById('print-roster-selected');
+    sel.style.display = 'block';
+    sel.textContent = `已選擇：${cls}班`;
+    document.getElementById('print-roster-confirm-btn').disabled = false;
+  }, _printRosterClass);
+  // Pre-select if already have a class
+  if (_printRosterClass) {
+    document.getElementById('print-roster-selected').style.display = 'block';
+    document.getElementById('print-roster-selected').textContent = `已選擇：${_printRosterClass}班`;
+    document.getElementById('print-roster-confirm-btn').disabled = false;
+  } else {
+    document.getElementById('print-roster-selected').style.display = 'none';
+    document.getElementById('print-roster-confirm-btn').disabled = true;
+  }
+  showModal('print-roster-modal');
+};
+
+window.filterPrintRosterGrade = function(grade, btn) {
+  document.getElementById('print-roster-grade-btns').querySelectorAll('button').forEach(b => b.className = 'btn btn-ghost btn-sm');
+  btn.className = 'btn btn-primary btn-sm';
+  buildPrintClassChips('print-roster-class-chips', grade, cls => {
+    _printRosterClass = cls;
+    const sel = document.getElementById('print-roster-selected');
+    sel.style.display = 'block';
+    sel.textContent = `已選擇：${cls}班`;
+    document.getElementById('print-roster-confirm-btn').disabled = false;
+  }, _printRosterClass);
+};
+
+window.doPrintRoster = async function() {
+  closeModal('print-roster-modal');
+  if (!_printRosterClass) return;
+  // Set rosterCurrentClass so exportBlankRosterSheet picks it up
+  rosterCurrentClass = _printRosterClass;
+  await exportBlankRosterSheet();
+};
+
+// -- 成績登錄表 Modal --
+window.openPrintGradeModal = function() {
+  _printGradeClass = currentGradeClass || userData?.homeroomClass || null;
+  _printGradeSubjects = [];
+  document.getElementById('print-grade-subject-area').style.display = 'none';
+  document.getElementById('print-grade-confirm-btn').disabled = true;
+
+  buildPrintClassChips('print-grade-class-chips', 0, cls => {
+    _printGradeClass = cls;
+    document.getElementById('print-grade-confirm-btn').disabled = false;
+    buildPrintGradeSubjectChips(cls);
+  }, _printGradeClass);
+
+  if (_printGradeClass) buildPrintGradeSubjectChips(_printGradeClass);
+  showModal('print-grade-modal');
+};
+
+window.filterPrintGradeGrade = function(grade, btn) {
+  document.getElementById('print-grade-grade-btns').querySelectorAll('button').forEach(b => b.className = 'btn btn-ghost btn-sm');
+  btn.className = 'btn btn-primary btn-sm';
+  buildPrintClassChips('print-grade-class-chips', grade, cls => {
+    _printGradeClass = cls;
+    document.getElementById('print-grade-confirm-btn').disabled = false;
+    buildPrintGradeSubjectChips(cls);
+  }, _printGradeClass);
+};
+
+function buildPrintGradeSubjectChips(classId) {
+  const area = document.getElementById('print-grade-subject-area');
+  const container = document.getElementById('print-grade-subject-chips');
+  const grade = getGrade(classId);
+  const allSubjects = getSubjectsForGrade(grade).filter(s => s.domain !== 'flex');
+
+  // For subject teachers: only show their subjects in this class
+  // For homeroom: show all non-flex subjects
+  let availSubjects;
+  if (userData?.teacherRole === 'homeroom') {
+    availSubjects = allSubjects;
+  } else {
+    const mySubjIds = new Set(myAssignments.filter(a => a.classId === classId).map(a => a.subjectId));
+    availSubjects = allSubjects.filter(s => mySubjIds.has(s.id));
+  }
+
+  if (availSubjects.length === 0) {
+    area.style.display = 'block';
+    container.innerHTML = '<div style="color:var(--gray-400);font-size:0.82rem">此班無可列印的科目</div>';
+    return;
+  }
+
+  _printGradeSubjects = availSubjects.map(s => s.id); // default: all selected
+  container.innerHTML = '';
+  availSubjects.forEach(subj => {
+    const chip = document.createElement('button');
+    chip.className = 'class-chip-sm active';
+    chip.textContent = subj.name;
+    chip.dataset.subjId = subj.id;
+    chip.onclick = () => {
+      chip.classList.toggle('active');
+      _printGradeSubjects = Array.from(container.querySelectorAll('.class-chip-sm.active')).map(c => c.dataset.subjId);
+      document.getElementById('print-grade-all-subjects').checked = _printGradeSubjects.length === availSubjects.length;
+    };
+    container.appendChild(chip);
+  });
+  document.getElementById('print-grade-all-subjects').checked = true;
+  area.style.display = 'block';
+}
+
+window.toggleAllPrintSubjects = function(cb) {
+  const chips = document.querySelectorAll('#print-grade-subject-chips .class-chip-sm');
+  chips.forEach(c => c.classList.toggle('active', cb.checked));
+  _printGradeSubjects = cb.checked ? Array.from(chips).map(c => c.dataset.subjId) : [];
+};
+
+window.doPrintGradeSheet = async function() {
+  closeModal('print-grade-modal');
+  if (!_printGradeClass) return;
+
+  const classId = _printGradeClass;
+  const studentsSnap = await getDocs(query(collection(db,'students'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const students = studentsSnap.docs.map(d=>({id:d.id,...d.data()}))
+    .sort((a,b)=>a.seatNo-b.seatNo).filter(s=>s.specialMark!=='self');
+
+  const grade = getGrade(classId);
+  const allSubjects = getSubjectsForGrade(grade).filter(s => s.domain !== 'flex');
+  const selectedSubjects = allSubjects.filter(s => _printGradeSubjects.includes(s.id));
+
+  // Get teacher name for each subject
+  const assignSnap = await getDocs(query(collection(db,'assignments'),
+    where('classId','==',classId), where('semesterYear','==',currentSemester.year),
+    where('semesterNum','==',currentSemester.semester)));
+  const assignments = assignSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+  let pages = '';
+  for (const subj of selectedSubjects) {
+    const teacher = assignments.find(a=>a.subjectId===subj.id)?.teacherName || userData?.realName || '　　　　';
+    const bodyRows = students.map(st => {
+      const tag = st.specialMark==='skip'?'（跳）':st.specialMark==='special'?'（特）':'';
+      return `<tr>
+        <td style="text-align:center;width:44px">${st.seatNo.toString().padStart(2,'0')}</td>
+        <td style="text-align:left;padding-left:6px;min-width:72px">${st.name}${tag}</td>
+        <td></td><td></td><td></td>
+        <td style="background:#eff6ff"></td>
+        <td style="background:#d1fae5"></td>
+        <td></td><td></td><td></td>
+        <td style="background:#eff6ff"></td>
+        <td style="background:#d1fae5"></td>
+        <td style="background:#fff8e1"></td>
+      </tr>`;
+    }).join('');
+
+    pages += `<div class="print-page">
+      <div class="page-title">新莊國小 ${currentSemester.year}學年度第${currentSemester.semester===1?'一':'二'}學期　${classId}班「${subj.name}」成績登錄表</div>
+      <div class="page-meta">
+        <span>授課教師：${teacher}</span>
+        <span>填表日期：　　年　　月　　日</span>
+        <span>總人數：${students.length}人</span>
+      </div>
+      <table class="blank-table">
+        <thead>
+          <tr>
+            <th rowspan="2">座號</th><th rowspan="2">姓名</th>
+            <th colspan="3">第一次平時成績</th>
+            <th rowspan="2" style="background:#1e40af">平時小計①</th>
+            <th rowspan="2" style="background:#166534">定期考①</th>
+            <th colspan="3">第二次平時成績</th>
+            <th rowspan="2" style="background:#1e40af">平時小計②</th>
+            <th rowspan="2" style="background:#166534">定期考②</th>
+            <th rowspan="2" style="background:#92400e">學期總分</th>
+          </tr>
+          <tr>
+            <th>作業一</th><th>作業二</th><th>作業三</th>
+            <th>作業一</th><th>作業二</th><th>作業三</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
+  }
+  if (!pages) { showToast('沒有可列印的科目', 'error'); return; }
+  openPrintWindow(pages, `${classId}班空白成績登錄表`, true);
+};
+
 // ===== EXPORT: SIDEBAR QUICK BUTTONS =====
-window.exportBlankRoster = function() { exportBlankRosterSheet(); };
-window.exportBlankGrade  = function() { exportBlankGradeSheet(); };
+window.exportBlankRoster = function() { openPrintRosterModal(); };
+window.exportBlankGrade  = function() { openPrintGradeModal(); };
 window.exportFullGrades  = function() { showToast('全校報表請至管理者後台使用','info'); };
 
 // ===== HELPERS: CSV download =====
