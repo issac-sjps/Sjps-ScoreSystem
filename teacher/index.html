@@ -2663,12 +2663,16 @@ let _printGradeSubjects = [];
 function buildPrintClassChips(containerId, gradeFilter, onSelect, currentVal) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  // Only show classes the teacher has assignments in, or all if homeroom
+  // 導師：顯示全部班級；科任：只顯示有實際任課（有 subjectId）的班
   const relevantClasses = userData?.teacherRole === 'homeroom'
     ? ALL_CLASSES
-    : [...new Set(myAssignments.map(a => a.classId))].sort();
+    : [...new Set(myAssignments.filter(a => a.subjectId).map(a => a.classId))].sort();
 
   container.innerHTML = '';
+  if (relevantClasses.length === 0) {
+    container.innerHTML = '<div style="color:var(--gray-400);font-size:0.82rem">尚未設定任課班級，請至「設定任課」頁面設定</div>';
+    return;
+  }
   relevantClasses.forEach(c => {
     const g = getGrade(c);
     if (gradeFilter && g !== gradeFilter) return;
@@ -2759,23 +2763,25 @@ function buildPrintGradeSubjectChips(classId) {
   const grade = getGrade(classId);
   const allSubjects = getSubjectsForGrade(grade).filter(s => s.domain !== 'flex');
 
-  // For subject teachers: only show their subjects in this class
-  // For homeroom: show all non-flex subjects
+  // 導師：顯示全部非彈性科目；科任：只顯示自己在此班有 subjectId 的科目
   let availSubjects;
   if (userData?.teacherRole === 'homeroom') {
     availSubjects = allSubjects;
   } else {
-    const mySubjIds = new Set(myAssignments.filter(a => a.classId === classId).map(a => a.subjectId));
+    const mySubjIds = new Set(
+      myAssignments.filter(a => a.classId === classId && a.subjectId).map(a => a.subjectId)
+    );
     availSubjects = allSubjects.filter(s => mySubjIds.has(s.id));
   }
 
+  area.style.display = 'block';
   if (availSubjects.length === 0) {
-    area.style.display = 'block';
-    container.innerHTML = '<div style="color:var(--gray-400);font-size:0.82rem">此班無可列印的科目</div>';
+    container.innerHTML = '<div style="color:var(--danger);font-size:0.82rem">此班沒有您任教的科目，請至「設定任課」確認</div>';
+    document.getElementById('print-grade-confirm-btn').disabled = true;
     return;
   }
 
-  _printGradeSubjects = availSubjects.map(s => s.id); // default: all selected
+  _printGradeSubjects = availSubjects.map(s => s.id);
   container.innerHTML = '';
   availSubjects.forEach(subj => {
     const chip = document.createElement('button');
@@ -2786,11 +2792,12 @@ function buildPrintGradeSubjectChips(classId) {
       chip.classList.toggle('active');
       _printGradeSubjects = Array.from(container.querySelectorAll('.class-chip-sm.active')).map(c => c.dataset.subjId);
       document.getElementById('print-grade-all-subjects').checked = _printGradeSubjects.length === availSubjects.length;
+      document.getElementById('print-grade-confirm-btn').disabled = _printGradeSubjects.length === 0;
     };
     container.appendChild(chip);
   });
   document.getElementById('print-grade-all-subjects').checked = true;
-  area.style.display = 'block';
+  document.getElementById('print-grade-confirm-btn').disabled = false;
 }
 
 window.toggleAllPrintSubjects = function(cb) {
