@@ -2761,17 +2761,17 @@ function buildPrintGradeSubjectChips(classId) {
   const area = document.getElementById('print-grade-subject-area');
   const container = document.getElementById('print-grade-subject-chips');
   const grade = getGrade(classId);
-  const allSubjects = getSubjectsForGrade(grade).filter(s => s.domain !== 'flex');
+  const allSubjects = getSubjectsForGrade(grade); // 不過濾彈性科目
 
-  // 導師：顯示全部非彈性科目；科任：只顯示自己在此班有 subjectId 的科目
+  // 導師：顯示全部科目；科任：只顯示自己在此班有 subjectId 的科目
   let availSubjects;
   if (userData?.teacherRole === 'homeroom') {
-    availSubjects = allSubjects;
+    availSubjects = allSubjects.filter(s => s.domain !== 'flex'); // 導師印全部非彈性
   } else {
     const mySubjIds = new Set(
       myAssignments.filter(a => a.classId === classId && a.subjectId).map(a => a.subjectId)
     );
-    availSubjects = allSubjects.filter(s => mySubjIds.has(s.id));
+    availSubjects = allSubjects.filter(s => mySubjIds.has(s.id)); // 科任印自己任教的（含彈性）
   }
 
   area.style.display = 'block';
