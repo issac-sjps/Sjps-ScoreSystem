@@ -648,30 +648,205 @@ tbody tr:last-child { border-bottom: none; }
   display: none;
   background: none;
   border: none;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   cursor: pointer;
   color: var(--gray-600);
+  padding: 8px;
+  border-radius: var(--radius);
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* 側邊欄遮罩 */
+.sidebar-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+}
+.sidebar-backdrop.show { display: block; }
+
+/* ===== 768px 以下 ===== */
 @media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
+
+  /* Sidebar slide-in */
   .sidebar {
-    transform: translateX(-240px);
-    width: 240px;
+    transform: translateX(-260px);
+    width: 260px;
+    box-shadow: none;
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1), box-shadow 0.28s;
   }
   .sidebar.open {
     transform: translateX(0);
-    --sidebar-w: 240px;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.25);
   }
+
   .main-content { margin-left: 0; }
-  .mobile-menu-btn { display: block; }
-  .page-content { padding: 16px; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .modal { margin: 10px; }
-  .grade-input { width: 50px; }
+  .mobile-menu-btn { display: inline-flex; }
+
+  /* Topbar */
+  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar-title { font-size: 0.92rem; }
+  .semester-selector span { display: none; }
+  .semester-selector select { font-size: 0.75rem; padding: 3px 6px; max-width: 130px; }
+
+  /* Page content */
+  .page-content { padding: 12px; }
+
+  /* Stats grid */
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 14px; }
+  .stat-value { font-size: 1.6rem; }
+
+  /* Cards */
+  .card-header { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+  .card-body { padding: 14px; }
+  .card-title { font-size: 0.88rem; }
+
+  /* Buttons - larger touch targets */
+  .btn { min-height: 38px; }
+  .btn-sm { min-height: 34px; padding: 5px 10px; }
+
+  /* Tables */
+  .table-wrapper { border-radius: var(--radius); }
+  table { font-size: 0.78rem; }
+  thead th { padding: 8px 6px; font-size: 0.72rem; }
+  tbody td { padding: 7px 6px; }
+
+  /* Modal - bottom sheet on mobile */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    max-width: 100%;
+    max-height: 92vh;
+    width: 100%;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    animation: slideUpMobile 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  .modal-lg, .modal-xl { max-width: 100%; }
+  .modal-header { padding: 16px 18px 14px; }
+  .modal-body { padding: 16px 18px; }
+  .modal-footer { padding: 14px 18px; }
+
+  /* Toast - 移到底部 */
+  #toast-container {
+    top: auto;
+    bottom: 80px;
+    right: 12px;
+    left: 12px;
+  }
+  .toast { min-width: unset; max-width: 100%; }
+
+  /* Grade topbar */
+  .grade-topbar {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 12px !important;
+  }
+  .grade-topbar > div:last-child {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Grade excel 輸入框 */
+  .grade-cell-input {
+    width: 52px !important;
+    font-size: 1rem !important;
+    padding: 6px 4px !important;
+    min-height: 40px;
+  }
+  .col-seat { min-width: 36px !important; width: 36px !important; font-size: 0.72rem; }
+  .col-name { min-width: 64px !important; max-width: 64px !important; font-size: 0.78rem; }
+  .col-total { min-width: 52px !important; width: 52px !important; font-size: 0.78rem; }
+
+  /* Grade section tabs */
+  .grade-section-tab { font-size: 0.78rem !important; padding: 7px 10px !important; }
+
+  /* Form controls */
+  .form-control { font-size: 1rem; padding: 10px 12px; }
+
+  /* 底部快捷導覽列 */
+  .mobile-bottom-nav {
+    display: flex;
+  }
+
+  /* 各頁面按鈕群組 wrap */
+  [style*="display:flex"] { flex-wrap: wrap; }
 }
+
+/* ===== 480px 以下 ===== */
 @media (max-width: 480px) {
-  .stats-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-value { font-size: 1.4rem; }
+  .page-content { padding: 10px; }
+  .card-header { padding: 10px 12px; }
+  .card-body { padding: 12px; }
+  html { font-size: 13px; }
+
+  /* Modal handle bar */
+  .modal::before {
+    content: '';
+    display: block;
+    width: 36px; height: 4px;
+    background: var(--gray-200);
+    border-radius: 2px;
+    margin: 10px auto 0;
+    flex-shrink: 0;
+  }
+  .modal-header { padding-top: 10px; }
+}
+
+@keyframes slideUpMobile {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* ===== 底部快捷導覽列（手機專用） ===== */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: white;
+  border-top: 1px solid var(--gray-200);
+  z-index: 98;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+}
+.mobile-bottom-nav a, .mobile-bottom-nav button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--gray-400);
+  font-size: 0.6rem;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  padding: 6px 4px;
+  transition: color 0.15s;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-bottom-nav a .icon, .mobile-bottom-nav button .icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.mobile-bottom-nav a.active, .mobile-bottom-nav button.active {
+  color: var(--primary);
+}
+/* 有底部 nav 時內容推上去 */
+@media (max-width: 768px) {
+  .page-content { padding-bottom: 72px; }
 }
 
 /* ===== ANNOUNCEMENT MODAL ===== */

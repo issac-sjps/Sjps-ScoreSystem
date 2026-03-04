@@ -606,6 +606,8 @@
   </div>
 </div>
 
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
 <div class="app-layout">
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
@@ -677,7 +679,7 @@
   <!-- Main -->
   <div class="main-content">
     <div class="topbar">
-      <button class="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+      <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
       <div class="topbar-title" id="topbar-title">首頁總覽</div>
       <div class="topbar-actions">
         <div id="admin-back-btn" style="display:none">
@@ -886,6 +888,25 @@
   </div>
 </div>
 
+<!-- 手機底部快捷導覽列 -->
+<nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+  <button class="active" id="mob-nav-dashboard" onclick="showPage('dashboard');setMobNav('dashboard')">
+    <span class="icon">🏠</span>首頁
+  </button>
+  <button id="mob-nav-grades" onclick="showPage('grades');setMobNav('grades')">
+    <span class="icon">📝</span>成績
+  </button>
+  <button id="mob-nav-overview" onclick="showPage('overview');setMobNav('overview')" style="display:none">
+    <span class="icon">📈</span>總覽
+  </button>
+  <button id="mob-nav-ranking" onclick="showPage('ranking');setMobNav('ranking')" style="display:none">
+    <span class="icon">🏆</span>排名
+  </button>
+  <button onclick="toggleSidebar()">
+    <span class="icon">☰</span>選單
+  </button>
+</nav>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
@@ -980,6 +1001,10 @@ async function loadUserData() {
     if (userData.teacherRole === 'homeroom') {
       document.getElementById('nav-overview-section').style.display = 'block';
       document.getElementById('nav-export-full').style.display = 'flex';
+      const mobOv = document.getElementById('mob-nav-overview');
+      const mobRk = document.getElementById('mob-nav-ranking');
+      if (mobOv) mobOv.style.display = '';
+      if (mobRk) mobRk.style.display = '';
     }
 
     if (!userData.realName) {
@@ -2945,6 +2970,23 @@ function openPrintWindow(pagesHtml, title, landscape) {
 
 
 
+// ===== MOBILE SIDEBAR TOGGLE =====
+window.toggleSidebar = function() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  const isOpen = sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', !isOpen);
+  backdrop.classList.toggle('show', !isOpen);
+  document.body.style.overflow = isOpen ? '' : 'hidden';
+};
+
+// ===== MOBILE BOTTOM NAV =====
+window.setMobNav = function(page) {
+  document.querySelectorAll('.mobile-bottom-nav button').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(`mob-nav-${page}`);
+  if (btn) btn.classList.add('active');
+};
+
 // ===== SEMESTER SELECTOR =====
 function initSemesterSelector() {
   const sel = document.getElementById('semester-select-top');
@@ -2985,6 +3027,16 @@ window.showPage = function(page) {
   if (page === 'bind') renderBindPage();
   if (page === 'overview') loadOverview();
   if (page === 'ranking') loadRanking();
+
+  // 手機：關閉 sidebar，同步底部 nav
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar?.classList.contains('open')) {
+    sidebar.classList.remove('open');
+    backdrop?.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+  setMobNav(page);
 };
 
 // ===== BIND PAGE RENDER =====
