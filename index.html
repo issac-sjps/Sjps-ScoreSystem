@@ -179,10 +179,6 @@
         <div class="step-title">請選擇您的身分</div>
         <div class="step-desc">選擇後將進行 Google 登入驗證</div>
         <div class="identity-grid">
-          <div class="identity-card" onclick="selectIdentity('admin')">
-            <div class="icon">🛡️</div>
-            <div class="label">管理員</div>
-          </div>
           <div class="identity-card" onclick="selectIdentity('teacher')">
             <div class="icon">👨‍🏫</div>
             <div class="label">老師</div>
@@ -335,16 +331,9 @@
       }
 
       if (adminEmails.includes(email)) {
-        await ensureUserDoc(user, 'admin');
-        window.location.href = 'admin/index.html';
-        return;
-      }
-
-      if (selectedIdentity === 'admin') {
-        showToast('此帳號不在管理員清單中，請聯絡 issac@sjps.kh.edu.tw', 'error');
-        const btn = document.getElementById('google-btn');
-        btn.disabled = false;
-        btn.innerHTML = '<div class="google-icon"></div> 使用 Google 帳號登入';
+        // Admin 一律先進老師頁面，可從右上角切換後台
+        await ensureUserDoc(user, 'teacher');
+        window.location.href = 'teacher/index.html';
         return;
       }
 
@@ -393,7 +382,7 @@
         const userSnap = await getDoc(doc(db, 'users', user.email));
         if (userSnap.exists()) {
           const role = userSnap.data().role;
-          if (role === 'admin') { window.location.href = 'admin/index.html'; return; }
+          if (role === 'admin') { window.location.href = 'teacher/index.html'; return; }
           if (role === 'teacher') { window.location.href = 'teacher/index.html'; return; }
           if (role === 'student') { window.location.href = 'student/index.html'; return; }
         }
